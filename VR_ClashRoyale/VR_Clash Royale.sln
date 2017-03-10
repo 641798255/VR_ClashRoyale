@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VR_Clash Royale.CSharp", "VR_Clash Royale.CSharp.csproj", "{9EAAA3EC-076E-F726-B907-73EFF5D987BE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VR_Clash Royale.CSharp.Editor", "VR_Clash Royale.CSharp.Editor.csproj", "{D02F48F1-A399-E324-9A64-94B84C38884A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9EAAA3EC-076E-F726-B907-73EFF5D987BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9EAAA3EC-076E-F726-B907-73EFF5D987BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9EAAA3EC-076E-F726-B907-73EFF5D987BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9EAAA3EC-076E-F726-B907-73EFF5D987BE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D02F48F1-A399-E324-9A64-94B84C38884A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D02F48F1-A399-E324-9A64-94B84C38884A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D02F48F1-A399-E324-9A64-94B84C38884A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D02F48F1-A399-E324-9A64-94B84C38884A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
