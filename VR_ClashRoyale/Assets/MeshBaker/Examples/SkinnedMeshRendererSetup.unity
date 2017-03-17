@@ -139,18 +139,13 @@ MonoBehaviour:
   _textureBakeResults: {fileID: 11400000, guid: c067ebfba078fdc48b4e3f78525fc128,
     type: 2}
   _atlasPadding: 1
-  _maxAtlasSize: 4096
   _resizePowerOfTwoTextures: 1
   _fixOutOfBoundsUVs: 0
   _maxTilingBakeSize: 1024
   _packingAlgorithm: 1
-  _meshBakerTexturePackerForcePowerOfTwo: 1
-  _customShaderProperties: []
-  _customShaderPropNames_Depricated: []
+  _customShaderPropNames: []
   _doMultiMaterial: 0
   _resultMaterial: {fileID: 2100000, guid: 1630f7ea0126174458ca61ba6bf19aee, type: 2}
-  _considerNonTextureProperties: 1
-  _doSuggestTreatment: 1
   resultMaterials: []
   objsToMesh:
   - {fileID: 1293905926}
@@ -159,11 +154,6 @@ MonoBehaviour:
   - {fileID: 496889865}
   - {fileID: 594810460}
   - {fileID: 599207941}
-  OnCombinedTexturesCoroutineAtlasesAndRects:
-  - atlases:
-    - {fileID: 0}
-    texPropertyNames:
-    - 5f4d61696e546578
 --- !u!1 &43945714
 GameObject:
   m_ObjectHideFlags: 0

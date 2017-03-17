@@ -31,9 +31,9 @@ public abstract class MB3_MeshBakerCommon : MB3_MeshBakerRoot {
 	public bool useObjsToMeshFromTexBaker = true;
 
 	public bool clearBuffersAfterBake = true;
-
-    //t0do put this in the batch baker
-    public string bakeAssetsInPlaceFolderPath;	
+	
+	//todo put this in the batch baker
+	public string bakeAssetsInPlaceFolderPath;	
 	
 	[HideInInspector] public GameObject resultPrefab;
 
@@ -66,30 +66,6 @@ public abstract class MB3_MeshBakerCommon : MB3_MeshBakerRoot {
 				if (mr != null){
 					mr.enabled = show;
 				}
-#if UNITY_5
-                LODGroup lodG = mr.GetComponentInParent<LODGroup>();
-                if (lodG != null)
-                {
-                    bool isOnlyInGroup = true;
-                    LOD[] lods = lodG.GetLODs();
-                    for (int j = 0; j < lods.Length; j++)
-                    {
-                        for (int k = 0; k < lods[j].renderers.Length; k++)
-                        {
-                            if (lods[j].renderers[k] != mr)
-                            {
-                                isOnlyInGroup = false;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (isOnlyInGroup)
-                    {
-                        lodG.enabled = show;
-                    }
-                }
-#endif
 			}
 		}
 	}
@@ -179,15 +155,13 @@ public abstract class MB3_MeshBakerCommon : MB3_MeshBakerRoot {
 					  bool normals,
 					  bool tangents,
 					  bool uvs,
-					  bool uv2,
-					  bool uv3,
-                      bool uv4,
 					  bool colors,
+					  bool uv1,
+					  bool uv2,
 					  bool bones=false,
-                      bool blendShapesFlag=false,
 					  MB3_MeshCombiner.GenerateUV2Delegate uv2GenerationMethod=null){
 		meshCombiner.name = name + "-mesh";
-		meshCombiner.Apply(triangles,vertices,normals,tangents,uvs,uv2,uv3,uv4,colors,bones, blendShapesFlag,uv2GenerationMethod);
+		meshCombiner.Apply(triangles,vertices,normals,tangents,uvs,colors,uv1,uv2,bones,uv2GenerationMethod);
 	}	
 	
 	public virtual bool CombinedMeshContains(GameObject go){

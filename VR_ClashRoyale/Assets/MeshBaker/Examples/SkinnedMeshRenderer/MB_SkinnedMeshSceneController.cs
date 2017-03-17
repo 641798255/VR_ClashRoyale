@@ -20,13 +20,12 @@ public class MB_SkinnedMeshSceneController : MonoBehaviour {
 		    //To demonstrate lets add a character to the combined mesh
 			GameObject worker1 = (GameObject) Instantiate(workerPrefab);
 			worker1.transform.position = new Vector3(1.31f, 0.985f, -0.25f);
-			Animation anim = worker1.GetComponent<Animation>();
-			anim.wrapMode = WrapMode.Loop;
+			worker1.GetComponent<Animation>().wrapMode = WrapMode.Loop;
 		    //IMPORTANT set the culling type to something other than renderer. Animations may not play
 		    //if animation.cullingType is left on BasedOnRenderers. This appears to be a bug in Unity
 		    //the animation gets confused about the bounds if the skinnedMeshRenderer is changed
-			anim.cullingType = AnimationCullingType.AlwaysAnimate; //IMPORTANT
-			anim.Play("run");
+		    worker1.GetComponent<Animation>().cullingType = AnimationCullingType.AlwaysAnimate; //IMPORTANT
+			worker1.GetComponent<Animation>().Play("run");
 				
 		    //create an array with everything we want to add
 		    //It is important to add the gameObject with the Renderer/mesh attached

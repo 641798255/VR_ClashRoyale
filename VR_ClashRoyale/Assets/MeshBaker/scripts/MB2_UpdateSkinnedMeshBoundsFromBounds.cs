@@ -25,9 +25,8 @@ public class MB2_UpdateSkinnedMeshBoundsFromBounds : MonoBehaviour {
 					return;
 				}
 			}
-            bool origVal = smr.updateWhenOffscreen;
 			smr.updateWhenOffscreen = true;
-			smr.updateWhenOffscreen = origVal;
+			smr.updateWhenOffscreen = false;
         }
     
 	void Update () {

@@ -15,10 +15,8 @@ using UnityEditor;
 
 
 [CustomEditor(typeof(MB3_MeshBaker))]
-[CanEditMultipleObjects]
 public class MB3_MeshBakerEditor : Editor {
 		MB3_MeshBakerEditorInternal mbe = new MB3_MeshBakerEditorInternal();
-
 		[MenuItem("GameObject/Create Other/Mesh Baker/Mesh And Material Baker")]
 		public static GameObject CreateNewMeshBaker(){
 			MB3_TextureBaker[] mbs = (MB3_TextureBaker[]) GameObject.FindObjectsOfType(typeof(MB3_TextureBaker));
@@ -46,19 +44,9 @@ public class MB3_MeshBakerEditor : Editor {
 			meshBaker.transform.parent = nmb.transform;
 			return nmb.gameObject;  
 		}
-
-        void OnEnable()
-        {
-            mbe.OnEnable(serializedObject);
-        }
-
-        void OnDisable()
-        {
-            mbe.OnDisable();
-        }
-
-        public override void OnInspectorGUI(){
-			mbe.OnInspectorGUI(serializedObject, (MB3_MeshBakerCommon) target, typeof(MB3_MeshBakerEditorWindow));
+		
+		public override void OnInspectorGUI(){
+			mbe.OnInspectorGUI((MB3_MeshBakerCommon) target, typeof(MB3_MeshBakerEditorWindow));
 		}
 
 

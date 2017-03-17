@@ -227,9 +227,6 @@ MonoBehaviour:
       pieNumSegments: 4
       pieAxis: {x: 0, y: 1, z: 0}
     clusterOnLMIndex: 0
-  sourceObjectBounds:
-    m_Center: {x: -21.097046, y: -15.663489, z: -18.5388}
-    m_Extent: {x: 0.5, y: 1.9489908, z: 2.4939423}
 --- !u!114 &517256433
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -244,25 +241,19 @@ MonoBehaviour:
   LOG_LEVEL: 3
   _textureBakeResults: {fileID: 0}
   _atlasPadding: 1
-  _maxAtlasSize: 4096
   _resizePowerOfTwoTextures: 0
   _fixOutOfBoundsUVs: 0
   _maxTilingBakeSize: 1024
   _packingAlgorithm: 1
-  _meshBakerTexturePackerForcePowerOfTwo: 1
-  _customShaderProperties: []
-  _customShaderPropNames_Depricated: []
+  _customShaderPropNames: []
   _doMultiMaterial: 0
   _resultMaterial: {fileID: 0}
-  _considerNonTextureProperties: 1
-  _doSuggestTreatment: 1
   resultMaterials: []
   objsToMesh:
   - {fileID: 349757550}
   - {fileID: 2074156416}
   - {fileID: 1366043585}
   - {fileID: 1570847837}
-  OnCombinedTexturesCoroutineAtlasesAndRects: []
 --- !u!1 &682187018
 GameObject:
   m_ObjectHideFlags: 0
@@ -452,11 +443,7 @@ MonoBehaviour:
     _doTan: 1
     _doCol: 0
     _doUV: 1
-    _doUV3: 0
-    _doUV4: 0
-    _doBlendShapes: 0
-    uv2UnwrappingParamsHardAngle: 60
-    uv2UnwrappingParamsPackMargin: 0.005
+    _doUV1: 0
     objectsInCombinedMesh: []
     lightmapIndex: -1
     mbDynamicObjectsInCombinedMesh: []
@@ -464,13 +451,11 @@ MonoBehaviour:
     normals: []
     tangents: []
     uvs: []
+    uv1s: []
     uv2s: []
-    uv3s: []
-    uv4s: []
     colors: []
     bindPoses: []
     bones: []
-    blendShapes: []
     _mesh: {fileID: 0}
 --- !u!1 &1366043585
 GameObject:

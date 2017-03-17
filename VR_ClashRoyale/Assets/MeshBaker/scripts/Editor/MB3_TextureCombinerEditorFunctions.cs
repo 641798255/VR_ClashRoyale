@@ -12,267 +12,26 @@ namespace DigitalOpus.MB.Core{
 		private List<Texture2D> _texturesWithReadWriteFlagSet = new List<Texture2D>();
 		private Dictionary<Texture2D,TextureFormatInfo> _textureFormatMap = new Dictionary<Texture2D, TextureFormatInfo>();	
 		
+		class TextureFormatInfo{	
+			public TextureImporterFormat format;
+			public bool isNormalMap;
+			public String platform;
+			public TextureImporterFormat platformOverrideFormat;
+			
+			public TextureFormatInfo(TextureImporterFormat f, string p, TextureImporterFormat pf, bool isNormMap){
+				format = f;
+				platform = p;
+				platformOverrideFormat = pf;
+				isNormalMap = isNormMap;
+			}
+		}
+		
 		public void Clear(){
 			_texturesWithReadWriteFlagSet.Clear();
 			_textureFormatMap.Clear();
 		}
-
-#if UNITY_5_5 || UNITY_5_6 || UNITY_5_7 || UNITY_5_8 || UNITY_5_9 || UNITY_5_10 ||UNITY_6
-        class TextureFormatInfo
-        {
-            public TextureImporterCompression compression;
-            public TextureImporterFormat platformFormat;
-            public int platformCompressionQuality;
-            public String platform;
-            public bool isNormalMap;
-
-            public TextureFormatInfo(TextureImporterCompression comp, string p, TextureImporterFormat pf, bool isNormMap)
-            {
-                compression = comp;
-                platform = p;
-                platformFormat = pf;
-                platformCompressionQuality = 0;
-                this.isNormalMap = isNormMap;
-            }
-        }
-
-        public bool IsNormalMap(Texture2D tx)
-        {
-            AssetImporter ai = AssetImporter.GetAtPath(AssetDatabase.GetAssetOrScenePath(tx));
-            if (ai != null && ai is TextureImporter)
-            {
-                if (((TextureImporter)ai).textureType == TextureImporterType.NormalMap) return true;
-            }
-            return false;
-        }
-
-        public void AddTextureFormat(Texture2D tx, bool isNormalMap)
-        {
-            //pixel values don't copy correctly from one texture to another when isNormal is set so unset it.
-            TextureFormatInfo tfi = new TextureFormatInfo(TextureImporterCompression.Uncompressed, MBVersionEditor.GetPlatformString(), TextureImporterFormat.RGBA32, isNormalMap);
-            SetTextureFormat(tx, tfi, true, false);
-        }
-
-        void SetTextureFormat(Texture2D tx, TextureFormatInfo toThisFormat, bool addToList, bool setNormalMap)
-        {
-
-            AssetImporter ai = AssetImporter.GetAtPath(AssetDatabase.GetAssetOrScenePath(tx));
-            if (ai != null && ai is UnityEditor.TextureImporter)
-            {
-
-                string s;
-                if (addToList)
-                {
-                    s = "Setting texture compression for ";
-                }
-                else {
-                    s = "Restoring texture compression for ";
-                }
-                s += String.Format("{0}  to compression={1} isNormal={2} ", tx, toThisFormat.compression, setNormalMap);
-                if (toThisFormat.platform != null)
-                {
-                    s += String.Format(" setting platform override format for platform {0} to {1} compressionQuality {2}", toThisFormat.platform, toThisFormat.platformFormat, toThisFormat.platformCompressionQuality);
-                }
-                Debug.Log(s);
-                TextureImporter textureImporter = (TextureImporter)ai;
-                TextureFormatInfo restoreTfi = new TextureFormatInfo(textureImporter.textureCompression,
-                                                                    toThisFormat.platform,
-                                                                    TextureImporterFormat.RGBA32,
-                                                                    textureImporter.textureType == TextureImporterType.NormalMap);
-                string platform = toThisFormat.platform;
-                bool doImport = false;
-
-                if (platform != null)
-                {
-                    TextureImporterPlatformSettings tips = textureImporter.GetPlatformTextureSettings(platform);
-                    if (tips.overridden)
-                    {
-
-                        restoreTfi.platformFormat = tips.format;
-                        restoreTfi.platformCompressionQuality = tips.compressionQuality;
-                        TextureImporterPlatformSettings tipsOverridden = new TextureImporterPlatformSettings();
-                        tips.CopyTo(tipsOverridden);
-                        tipsOverridden.compressionQuality = toThisFormat.platformCompressionQuality;
-                        tipsOverridden.format = toThisFormat.platformFormat;
-                        textureImporter.SetPlatformTextureSettings(tipsOverridden);
-                        doImport = true;
-
-                    }
-                }
-                if (textureImporter.textureCompression != toThisFormat.compression)
-                {
-                    textureImporter.textureCompression = toThisFormat.compression;
-                    doImport = true;
-                }
-                if (textureImporter.textureType == TextureImporterType.NormalMap && !setNormalMap)
-                {
-                    textureImporter.textureType = TextureImporterType.Default;
-                    doImport = true;
-                }
-                if (textureImporter.textureType != TextureImporterType.NormalMap && setNormalMap)
-                {
-                    textureImporter.textureType = TextureImporterType.NormalMap;
-                    doImport = true;
-                }
-                if (addToList && !_textureFormatMap.ContainsKey(tx)) _textureFormatMap.Add(tx, restoreTfi);
-                if (doImport) AssetDatabase.ImportAsset(AssetDatabase.GetAssetOrScenePath(tx), ImportAssetOptions.ForceUpdate);
-            }
-        }
-
-        public void SetNormalMap(Texture2D tx)
-        {
-            AssetImporter ai = AssetImporter.GetAtPath(AssetDatabase.GetAssetOrScenePath(tx));
-            if (ai != null && ai is TextureImporter)
-            {
-                TextureImporter textureImporter = (TextureImporter)ai;
-                if (textureImporter.textureType != TextureImporterType.NormalMap)
-                {
-                    textureImporter.textureType = TextureImporterType.NormalMap;
-                    AssetDatabase.ImportAsset(AssetDatabase.GetAssetOrScenePath(tx));
-                }
-            }
-        }
-
-        public bool IsCompressed(Texture2D tx)
-        {
-            AssetImporter ai = AssetImporter.GetAtPath(AssetDatabase.GetAssetOrScenePath(tx));
-            if (ai != null && ai is TextureImporter)
-            {
-                TextureImporter textureImporter = (TextureImporter)ai;
-                if (textureImporter.textureCompression == TextureImporterCompression.Uncompressed)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-#else
-        class TextureFormatInfo
-        {
-            public TextureImporterFormat format;
-            public bool isNormalMap;
-            public String platform;
-            public TextureImporterFormat platformOverrideFormat;
-
-            public TextureFormatInfo(TextureImporterFormat f, string p, TextureImporterFormat pf, bool isNormMap)
-            {
-                format = f;
-                platform = p;
-                platformOverrideFormat = pf;
-                isNormalMap = isNormMap;
-            }
-        }
-
-        public bool IsNormalMap(Texture2D tx)
-        {
-            AssetImporter ai = AssetImporter.GetAtPath(AssetDatabase.GetAssetOrScenePath(tx));
-            if (ai != null && ai is TextureImporter)
-            {
-                if (((TextureImporter)ai).normalmap) return true;
-            }
-            return false;
-        }
-
-        public void AddTextureFormat(Texture2D tx, bool isNormalMap)
-        {
-            //pixel values don't copy correctly from one texture to another when isNormal is set so unset it.
-            SetTextureFormat(tx,
-                             new TextureFormatInfo(TextureImporterFormat.ARGB32, MBVersionEditor.GetPlatformString(), TextureImporterFormat.AutomaticTruecolor, isNormalMap),
-                            true, false);
-        }
-
-        void SetTextureFormat(Texture2D tx, TextureFormatInfo tfi, bool addToList, bool setNormalMap)
-        {
-
-            AssetImporter ai = AssetImporter.GetAtPath(AssetDatabase.GetAssetOrScenePath(tx));
-            if (ai != null && ai is UnityEditor.TextureImporter)
-            {
-                string s;
-                if (addToList)
-                {
-                    s = "Setting texture format for ";
-                }
-                else {
-                    s = "Restoring texture format for ";
-                }
-                s += tx + " to " + tfi.format;
-                if (tfi.platform != null)
-                {
-                    s += " setting platform override format for " + tfi.platform + " to " + tfi.platformOverrideFormat;
-                }
-                Debug.Log(s);
-                TextureImporter textureImporter = (TextureImporter)ai;
-                TextureFormatInfo restoreTfi = new TextureFormatInfo(textureImporter.textureFormat,
-                                                                    tfi.platform,
-                                                                    TextureImporterFormat.AutomaticTruecolor,
-                                                                    textureImporter.normalmap);
-                string platform = tfi.platform;
-                bool doImport = false;
-                if (platform != null)
-                {
-                    int maxSize;
-                    TextureImporterFormat f;
-                    textureImporter.GetPlatformTextureSettings(platform, out maxSize, out f);
-                    restoreTfi.platformOverrideFormat = f;
-                    if (f != 0)
-                    { //f == 0 means no override or platform doesn't exist
-                        textureImporter.SetPlatformTextureSettings(platform, maxSize, tfi.platformOverrideFormat);
-                        doImport = true;
-                    }
-                }
-
-                if (textureImporter.textureFormat != tfi.format)
-                {
-                    textureImporter.textureFormat = tfi.format;
-                    doImport = true;
-                }
-                if (textureImporter.normalmap && !setNormalMap)
-                {
-                    textureImporter.normalmap = false;
-                    doImport = true;
-                }
-                if (!textureImporter.normalmap && setNormalMap)
-                {
-                    textureImporter.normalmap = true;
-                    doImport = true;
-                }
-                if (addToList && !_textureFormatMap.ContainsKey(tx)) _textureFormatMap.Add(tx, restoreTfi);
-                if (doImport) AssetDatabase.ImportAsset(AssetDatabase.GetAssetOrScenePath(tx), ImportAssetOptions.ForceUpdate);
-            }
-        }
-
-        public void SetNormalMap(Texture2D tx)
-        {
-            AssetImporter ai = AssetImporter.GetAtPath(AssetDatabase.GetAssetOrScenePath(tx));
-            if (ai != null && ai is TextureImporter)
-            {
-                TextureImporter textureImporter = (TextureImporter)ai;
-                if (!textureImporter.normalmap)
-                {
-                    textureImporter.normalmap = true;
-                    AssetDatabase.ImportAsset(AssetDatabase.GetAssetOrScenePath(tx));
-                }
-            }
-        }
-
-        public bool IsCompressed(Texture2D tx)
-        {
-            AssetImporter ai = AssetImporter.GetAtPath(AssetDatabase.GetAssetOrScenePath(tx));
-            if (ai != null && ai is TextureImporter)
-            {
-                TextureImporter textureImporter = (TextureImporter)ai;
-                TextureImporterFormat tf = textureImporter.textureFormat;
-                if (tf != TextureImporterFormat.ARGB32)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-#endif
-
-
-        public void SetReadFlags(ProgressUpdateDelegate progressInfo){
+	
+		public void SetReadFlags(ProgressUpdateDelegate progressInfo){
 			for (int i = 0; i < _texturesWithReadWriteFlagSet.Count; i++){
 				if (progressInfo != null) progressInfo("Restoring read flag for " + _texturesWithReadWriteFlagSet[i],.9f);
 				SetReadWriteFlag(_texturesWithReadWriteFlagSet[i], false,false);
@@ -299,54 +58,126 @@ namespace DigitalOpus.MB.Core{
 			}
 		}
 
-        /**
+		public bool IsNormalMap(Texture2D tx){
+			AssetImporter ai = AssetImporter.GetAtPath( AssetDatabase.GetAssetOrScenePath(tx) );
+			if (ai != null && ai is TextureImporter){
+				if (((TextureImporter) ai).normalmap) return true;
+			}
+			return false;
+		}
+			
+		public void AddTextureFormat(Texture2D tx,bool isNormalMap){
+			//pixel values don't copy correctly from one texture to another when isNormal is set so unset it.
+			SetTextureFormat(tx, 
+			                 new TextureFormatInfo(TextureImporterFormat.ARGB32, MBVersionEditor.GetPlatformString(), TextureImporterFormat.AutomaticTruecolor,isNormalMap), 
+							true, false);		
+		}
+		
+		void SetTextureFormat(Texture2D tx, TextureFormatInfo tfi, bool addToList, bool setNormalMap){	
+			
+			AssetImporter ai = AssetImporter.GetAtPath( AssetDatabase.GetAssetOrScenePath(tx) );
+			if (ai != null && ai is UnityEditor.TextureImporter){
+				string s;
+				if (addToList){
+					s = "Setting texture format for ";
+				} else {
+					s = "Restoring texture format for ";
+				}
+				s += tx + " to " + tfi.format;
+				if (tfi.platform != null){
+					s += " setting platform override format for " + tfi.platform + " to " + tfi.platformOverrideFormat;
+				}
+				Debug.Log(s);
+				TextureImporter textureImporter = (TextureImporter) ai;
+				TextureFormatInfo restoreTfi = new TextureFormatInfo(textureImporter.textureFormat, 
+																	tfi.platform, 
+																	TextureImporterFormat.AutomaticTruecolor, 
+																	textureImporter.normalmap);
+				string platform = tfi.platform;
+				bool doImport = false;
+				if (platform != null){
+					int maxSize;
+					TextureImporterFormat f;						
+					textureImporter.GetPlatformTextureSettings(platform, out maxSize, out f);
+					restoreTfi.platformOverrideFormat = f;
+					if (f != 0){ //f == 0 means no override or platform doesn't exist
+						textureImporter.SetPlatformTextureSettings(platform, maxSize, tfi.platformOverrideFormat);	
+						doImport = true;
+					}
+				}
+						
+				if (textureImporter.textureFormat != tfi.format){
+					textureImporter.textureFormat = tfi.format;
+					doImport = true;
+				}
+				if (textureImporter.normalmap && !setNormalMap){
+					textureImporter.normalmap = false;
+					doImport = true;
+				}
+				if (!textureImporter.normalmap && setNormalMap){
+					textureImporter.normalmap = true;
+					doImport = true;					
+				}
+				if (addToList && !_textureFormatMap.ContainsKey(tx)) _textureFormatMap.Add(tx, restoreTfi);			
+				if (doImport) AssetDatabase.ImportAsset(AssetDatabase.GetAssetOrScenePath(tx), ImportAssetOptions.ForceUpdate);
+			}
+		}
+		
+		/**
 		 pass in System.IO.File.WriteAllBytes for parameter fileSaveFunction. This is necessary because on Web Player file saving
 		 functions only exist for Editor classes
-		 */
-        public void SaveAtlasToAssetDatabase(Texture2D atlas, ShaderTextureProperty texPropertyName, int atlasNum, Material resMat){	
-			if (atlas == null){
-				SetMaterialTextureProperty(resMat, texPropertyName, null);
-			} else {
-				string prefabPth = AssetDatabase.GetAssetPath(resMat);
-				if (prefabPth == null || prefabPth.Length == 0){
-					Debug.LogError("Could save atlas. Could not find result material in AssetDatabase.");
-					return;
-				}
-				string baseName = Path.GetFileNameWithoutExtension(prefabPth);
-				string folderPath = prefabPth.Substring(0,prefabPth.Length - baseName.Length - 4);		
-				string fullFolderPath = Application.dataPath + folderPath.Substring("Assets".Length,folderPath.Length - "Assets".Length);
-				
-				string pth = fullFolderPath + baseName + "-" + texPropertyName.name + "-atlas" + atlasNum + ".png";
-				//need to create a copy because sometimes the packed atlases are not in ARGB32 format
-				Texture2D newTex = MB_Utility.createTextureCopy(atlas);
-				int size = Mathf.Max(newTex.height,newTex.width);
-				byte[] bytes = newTex.EncodeToPNG();
-				Editor.DestroyImmediate(newTex);
-				
-				
-				System.IO.File.WriteAllBytes(pth, bytes);
+		 */	
+		public void SaveAtlasToAssetDatabase(Texture2D atlas, string texPropertyName, int atlasNum, Material resMat){	
+			string prefabPth = AssetDatabase.GetAssetPath(resMat);
+			if (prefabPth == null || prefabPth.Length == 0){
+				Debug.LogError("Could save atlas. Could not find result material in AssetDatabase.");
+				return;
+			}
+			string baseName = Path.GetFileNameWithoutExtension(prefabPth);
+			string folderPath = prefabPth.Substring(0,prefabPth.Length - baseName.Length - 4);		
+			string fullFolderPath = Application.dataPath + folderPath.Substring("Assets".Length,folderPath.Length - "Assets".Length);
+			
+			string pth = fullFolderPath + baseName + "-" + texPropertyName + "-atlas" + atlasNum + ".png";
+			Debug.Log("Created atlas for: " + texPropertyName + " at " + pth);
+			//need to create a copy because sometimes the packed atlases are not in ARGB32 format
+			Texture2D newTex = MB_Utility.createTextureCopy(atlas);
+			int size = Mathf.Max(newTex.height,newTex.width);
+			byte[] bytes = newTex.EncodeToPNG();
+			Editor.DestroyImmediate(newTex);
+			
+			
+			System.IO.File.WriteAllBytes(pth, bytes);
+	
+			AssetDatabase.Refresh();
+			
+			string relativePath = folderPath + baseName +"-" + texPropertyName + "-atlas" + atlasNum + ".png";                      				
+			SetTextureSize((Texture2D) (AssetDatabase.LoadAssetAtPath(relativePath, typeof(Texture2D))),size);
+			SetMaterialTextureProperty(resMat, texPropertyName, relativePath);
 		
-				AssetDatabase.Refresh();
-                Debug.Log(String.Format("Wrote atlas for {0} to file:{1}",texPropertyName.name, pth));
-				
-				string relativePath = folderPath + baseName +"-" + texPropertyName.name + "-atlas" + atlasNum + ".png";                      				
-				SetTextureSize((Texture2D) (AssetDatabase.LoadAssetAtPath(relativePath, typeof(Texture2D))),size);
-				SetMaterialTextureProperty(resMat, texPropertyName, relativePath);
-
-            }
 		}
 		
-		public void SetMaterialTextureProperty(Material target, ShaderTextureProperty texPropName, string texturePath){
+		public void SetMaterialTextureProperty(Material target, string texPropName, string texturePath){
 //			if (LOG_LEVEL >= MB2_LogLevel.debug) MB2_Log.Log(MB2_LogLevel.debug,"Assigning atlas " + texturePath + " to result material " + target + " for property " + texPropName,LOG_LEVEL);
-			if (texPropName.isNormalMap){
+			if (texPropName.Equals("_BumpMap")){
 				SetNormalMap( (Texture2D) (AssetDatabase.LoadAssetAtPath(texturePath, typeof(Texture2D))));
 			}
-			if (target.HasProperty(texPropName.name)){
-				target.SetTexture(texPropName.name, (Texture2D) (AssetDatabase.LoadAssetAtPath(texturePath, typeof(Texture2D))));
+			if (target.HasProperty(texPropName)){
+				target.SetTexture(texPropName, (Texture2D) (AssetDatabase.LoadAssetAtPath(texturePath, typeof(Texture2D))));
 			}		
 		}
-
-        public void SetTextureSize(Texture2D tx, int size){		
+	
+		public void SetNormalMap(Texture2D tx){		
+			AssetImporter ai = AssetImporter.GetAtPath( AssetDatabase.GetAssetOrScenePath(tx) );
+			if (ai != null && ai is TextureImporter){
+				TextureImporter textureImporter = (TextureImporter) ai;
+				if (!textureImporter.normalmap){
+					textureImporter.normalmap = true;
+					AssetDatabase.ImportAsset(AssetDatabase.GetAssetOrScenePath(tx));
+				}
+			}	
+		}
+		
+		public void SetTextureSize(Texture2D tx, int size){		
 			AssetImporter ai = AssetImporter.GetAtPath( AssetDatabase.GetAssetOrScenePath(tx) );
 			if (ai != null && ai is UnityEditor.TextureImporter){
 				TextureImporter textureImporter = (TextureImporter) ai;
@@ -363,13 +194,21 @@ namespace DigitalOpus.MB.Core{
 			}
 		}		
 
-		public void CommitChangesToAssets(){
-			AssetDatabase.Refresh();
+		public bool IsCompressed(Texture2D tx){		
+			AssetImporter ai = AssetImporter.GetAtPath( AssetDatabase.GetAssetOrScenePath(tx) );
+			if (ai != null && ai is TextureImporter){
+				TextureImporter textureImporter = (TextureImporter) ai;
+				TextureImporterFormat tf = textureImporter.textureFormat;
+				if (tf !=  TextureImporterFormat.ARGB32){
+					return true;	
+				}
+			}
+			return false;
 		}
 		
-//		public int GetMaximumAtlasDimension(){
-//			return MBVersionEditor.GetMaximumAtlasDimension();
-//		}
+		public int GetMaximumAtlasDimension(){
+			return MBVersionEditor.GetMaximumAtlasDimension();
+		}
 
 		public string GetPlatformString(){
 			return MBVersionEditor.GetPlatformString();

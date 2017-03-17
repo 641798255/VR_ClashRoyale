@@ -155,10 +155,7 @@ MonoBehaviour:
     _doTan: 1
     _doCol: 0
     _doUV: 1
-    _doUV3: 0
-    _doUV4: 0
-    uv2UnwrappingParamsHardAngle: 60
-    uv2UnwrappingParamsPackMargin: 0.005
+    _doUV1: 0
     objectsInCombinedMesh: []
     lightmapIndex: -1
     mbDynamicObjectsInCombinedMesh: []
@@ -166,9 +163,8 @@ MonoBehaviour:
     normals: []
     tangents: []
     uvs: []
+    uv1s: []
     uv2s: []
-    uv3s: []
-    uv4s: []
     colors: []
     bindPoses: []
     bones: []
@@ -288,9 +284,6 @@ MonoBehaviour:
       pieNumSegments: 4
       pieAxis: {x: 0, y: 1, z: 0}
     clusterOnLMIndex: 0
-  sourceObjectBounds:
-    m_Center: {x: -0.5093124, y: 6.82339, z: 0.5544472}
-    m_Extent: {x: 3.8460047, y: 6.9381285, z: 3.490427}
 --- !u!114 &633914096
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -306,19 +299,15 @@ MonoBehaviour:
   _textureBakeResults: {fileID: 11400000, guid: 4f3fe5f1052c1274d8c0067374c47a87,
     type: 2}
   _atlasPadding: 1
-  _maxAtlasSize: 4096
   _resizePowerOfTwoTextures: 0
   _fixOutOfBoundsUVs: 0
   _maxTilingBakeSize: 1024
   _packingAlgorithm: 1
-  _meshBakerTexturePackerForcePowerOfTwo: 1
-  _customShaderProperties: []
-  _customShaderPropNames_Depricated: []
+  _customShaderPropNames: []
   _doMultiMaterial: 0
   _resultMaterial: {fileID: 2100000, guid: c2cbcd309b312d6489c306475d74ff5a, type: 2}
   resultMaterials: []
-  objsToMesh:
-  - {fileID: 100002, guid: c11bca9a5bd333548b7892ae10fcc485, type: 2}
+  objsToMesh: []
 --- !u!114 &633914097
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -1,7 +1,7 @@
 //----------------------------------------------
 //            MeshBaker
 // Copyright © 2011-2012 Ian Deane
-//---------------------------------------------- 
+//----------------------------------------------
 using UnityEngine;
 using System.Collections;
 using System.IO;
@@ -21,60 +21,29 @@ namespace DigitalOpus.MB.Core{
 		private static GUIContent insertContent = new GUIContent("+", "add a material");
 		private static GUIContent deleteContent = new GUIContent("-", "delete a material");
 		private static GUILayoutOption buttonWidth = GUILayout.MaxWidth(20f);
-        public static GUIContent noneContent = new GUIContent("");
-
-        //private SerializedObject textureBaker;
-		private SerializedProperty logLevel, textureBakeResults, maxTilingBakeSize, maxAtlasSize, 
-            doMultiMaterial, fixOutOfBoundsUVs, resultMaterial, resultMaterials, atlasPadding, 
-            resizePowerOfTwoTextures, customShaderProperties, objsToMesh, texturePackingAlgorithm, 
-            forcePowerOfTwoAtlas, considerNonTextureProperties, sortOrderAxis;
+	
+		private SerializedObject textureBaker;
+		private SerializedProperty textureBakeResults, maxTilingBakeSize, doMultiMaterial, fixOutOfBoundsUVs, resultMaterial, resultMaterials, atlasPadding, resizePowerOfTwoTextures, customShaderPropNames, objsToMesh, texturePackingAlgorithm, forcePowerOfTwoAtlas;
 		
 		bool resultMaterialsFoldout = true;
 		bool showInstructions = false;
 		bool showContainsReport = true;
-
-        GUIStyle multipleMaterialBackgroundStyle = new GUIStyle();
-        GUIStyle multipleMaterialBackgroundStyleDarker = new GUIStyle();
-        GUIStyle editorBoxBackgroundStyle = new GUIStyle();
-
-
-        Texture2D multipleMaterialBackgroundColor;
-        Texture2D multipleMaterialBackgroundColorDarker;
-        Texture2D editorBoxBackgroundColor;
-
-        Color buttonColor = new Color(.8f,.8f,1f,1f);
-
-        private static GUIContent
-            createPrefabAndMaterialLabelContent = new GUIContent("Create Empty Assets For Combined Material", "Creates a material asset and a 'MB2_TextureBakeResult' asset. You should set the shader on the material. Mesh Baker uses the Texture properties on the material to decide what atlases need to be created. The MB2_TextureBakeResult asset should be used in the 'Material Bake Result' field."),
-            logLevelContent = new GUIContent("Log Level"),
+		
+		private static GUIContent
+			createPrefabAndMaterialLabelContent = new GUIContent("Create Empty Assets For Combined Material", "Creates a material asset and a 'MB2_TextureBakeResult' asset. You should set the shader on the material. Mesh Baker uses the Texture properties on the material to decide what atlases need to be created. The MB2_TextureBakeResult asset should be used in the 'Material Bake Result' field."),
 			openToolsWindowLabelContent = new GUIContent("Open Tools For Adding Objects", "Use these tools to find out what can be combined, discover possible problems with meshes, and quickly add objects."),
-			fixOutOfBoundsGUIContent = new GUIContent("Consider Mesh UVs", "(Was called 'fix out of bounds UVs') The textures will be sampled based on mesh uv rectangle as well as material tiling. This can have two effects:\n\n" + 
-                                                        "1) If the mesh only uses a small rectangle of it's source material (atlas). Only that small rectangle will be baked into the atlas.\n\n" +
-                                                        "2) If the mesh has uvs outside the 0,1 range (tiling) then this tiling will be baked into the atlas."),
+			fixOutOfBoundsGUIContent = new GUIContent("Fix Out-Of-Bounds UVs", "If mesh has uvs outside the range 0,1 uvs will be scaled so they are in 0,1 range. Textures will have tiling baked."),
 			resizePowerOfTwoGUIContent = new GUIContent("Resize Power-Of-Two Textures", "Shrinks textures so they have a clear border of width 'Atlas Padding' around them. Improves texture packing efficiency."),
 			customShaderPropertyNamesGUIContent = new GUIContent("Custom Shader Propert Names", "Mesh Baker has a list of common texture properties that it looks for in shaders to generate atlases. Custom shaders may have texture properties not on this list. Add them here and Meshbaker will generate atlases for them."),
 			combinedMaterialsGUIContent = new GUIContent("Combined Materials", "Use the +/- buttons to add multiple combined materials. You will also need to specify which materials on the source objects map to each combined material."),
 			maxTilingBakeSizeGUIContent = new GUIContent("Max Tiling Bake Size","This is the maximum size tiling textures will be baked to."),
-			maxAtlasSizeGUIContent = new GUIContent("Max Atlas Size","This is the maximum size of the atlas. If the atlas is larger than this textures being added will be shrunk."),
-
 			objectsToCombineGUIContent = new GUIContent("Objects To Be Combined","These can be prefabs or scene objects. They must be game objects with Renderer components, not the parent objects. Materials on these objects will baked into the combined material(s)"),
 			textureBakeResultsGUIContent = new GUIContent("Material Bake Result","This asset contains a mapping of materials to UV rectangles in the atlases. It is needed to create combined meshes or adjust meshes so they can use the combined material(s). Create it using 'Create Empty Assets For Combined Material'. Drag it to the 'Material Bake Result' field to use it."),
-			texturePackingAgorithmGUIContent = new GUIContent("Texture Packer", "Unity's PackTextures: Atlases are always a power of two. Can crash when trying to generate large atlases. \n\n "+
-			                                                  "Mesh Baker Texture Packer: Atlases will be most efficient size and shape (not limited to a power of two). More robust for large atlases. \n\n"+
-			                                                  "Mesh Baker Texture Packer Fast: Same as Mesh Baker Texture Packer but creates atlases on the graphics card using RenderTextures instead of the CPU. Source textures can be compressed. Requires Unity 5 or Unity 4 Pro. May not be pixel perfect."),
+			texturePackingAgorithmGUIContent = new GUIContent("Texture Packer", "Unity's PackTextures: Atlases are always a power of two. Can crash when trying to generate large atlases. \n\n Mesh Baker Texture Packer: Atlases will be most efficient size and shape (not limited to a power of two). More robust for large atlases."),
 			configMultiMatFromObjsContent = new GUIContent("Build Source To Combined Mapping From \n Objects To Be Combined", "This will group the materials on your source objects by shader and create one source to combined mapping for each shader found. For example if combining trees then all the materials with the same bark shader will be grouped togther and all the materials with the same leaf material will be grouped together. You can adjust the results afterwards. \n\nIf fix out-of-bounds UVs is NOT checked then submeshes with UVs outside 0,0..1,1 will be mapped to their own submesh regardless of shader."),
-			forcePowerOfTwoAtlasContent = new GUIContent("Force Power-Of-Two Atlas","Forces atlas x and y dimensions to be powers of two with aspect ratio 1:1,1:2 or 2:1. Unity recommends textures be a power of two for everything but GUI textures."),
-            considerNonTexturePropertiesContent = new GUIContent("Blend Non-Texture Properties","Will blend non-texture properties such as _Color, _Glossiness with the textures. Objects with different non-texture property values will be copied into different parts of the atlas even if they use the same textures. This feature requires that TextureBlenders " +
-                                                            "exist for the result material shader. It is easy to extend Mesh Baker by writing custom TextureBlenders. Default TextureBlenders exist for: \n" +
-                                                             "  - Standard \n" +
-                                                             "  - Diffuse \n" +
-                                                             "  - Bump Diffuse\n"),
-            gc_SortAlongAxis = new GUIContent("SortAlongAxis", "Transparent materials often require that triangles be rendered in a certain order. This will sort Game Objects along the specified axis. Triangles will be added to the combined mesh in this order.");
+			forcePowerOfTwoAtlasContent = new GUIContent("Force Power-Of-Two Atlas","Forces atlas x and y dimensions to be powers of two with aspect ratio 1:1,1:2 or 2:1. Unity recommends textures be a power of two for everything but GUI textures.");
 
-
-
-
-    [MenuItem("GameObject/Create Other/Mesh Baker/Material Only Baker")]
+		[MenuItem("GameObject/Create Other/Mesh Baker/Material Only Baker")]
 		public static void CreateNewTextureBaker(){
 			MB3_TextureBaker[] mbs = (MB3_TextureBaker[]) Editor.FindObjectsOfType(typeof(MB3_TextureBaker));
 	    	Regex regex = new Regex(@"(\d+)$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -98,247 +67,135 @@ namespace DigitalOpus.MB.Core{
 			tb.packingAlgorithm = MB2_PackingAlgorithmEnum.MeshBakerTexturePacker;
 		}
 	
-		void _init(SerializedObject textureBaker) {
-            //textureBaker = new SerializedObject(target);
-            logLevel = textureBaker.FindProperty("LOG_LEVEL");
+		void _init(MB3_TextureBaker target) {
+			textureBaker = new SerializedObject(target);
 			doMultiMaterial = textureBaker.FindProperty("_doMultiMaterial");
 			fixOutOfBoundsUVs = textureBaker.FindProperty("_fixOutOfBoundsUVs");
 			resultMaterial = textureBaker.FindProperty("_resultMaterial");
 			resultMaterials = textureBaker.FindProperty("resultMaterials");
 			atlasPadding = textureBaker.FindProperty("_atlasPadding");
 			resizePowerOfTwoTextures = textureBaker.FindProperty("_resizePowerOfTwoTextures");
-			customShaderProperties= textureBaker.FindProperty("_customShaderProperties");
+			customShaderPropNames = textureBaker.FindProperty("_customShaderPropNames");
 			objsToMesh = textureBaker.FindProperty("objsToMesh");
 			maxTilingBakeSize = textureBaker.FindProperty("_maxTilingBakeSize");
-			maxAtlasSize = textureBaker.FindProperty("_maxAtlasSize");
 			textureBakeResults = textureBaker.FindProperty("_textureBakeResults");
 			texturePackingAlgorithm = textureBaker.FindProperty("_packingAlgorithm");
 			forcePowerOfTwoAtlas = textureBaker.FindProperty("_meshBakerTexturePackerForcePowerOfTwo");
-            considerNonTextureProperties = textureBaker.FindProperty("_considerNonTextureProperties");
-            sortOrderAxis = textureBaker.FindProperty("sortAxis");
-        }	
+		}	
+		
+		public void DrawGUI(MB3_TextureBaker mom, System.Type editorWindow){
+			if (textureBaker == null){
+				_init(mom);
+			}
+			
+			textureBaker.Update();
+	
+			showInstructions = EditorGUILayout.Foldout(showInstructions,"Instructions:");
+			if (showInstructions){
+				EditorGUILayout.HelpBox("1. Add scene objects or prefabs to combine. For best results these should use the same shader as result material.\n\n" +
+										"2. Create Empty Assets For Combined Material(s)\n\n" +
+										"3. Check that shader on result material(s) are correct.\n\n" +
+										"4. Bake materials into combined material(s).\n\n" +
+										"5. Look at warnings/errors in console. Decide if action needs to be taken.\n\n" +
+										"6. You are now ready to build combined meshs or adjust meshes to use the combined material(s).", UnityEditor.MessageType.None);
+				
+			}
+			mom.LOG_LEVEL = (MB2_LogLevel) EditorGUILayout.EnumPopup("Log Level", mom.LOG_LEVEL);
 
-        public void OnEnable(SerializedObject textureBaker)
-        {
-            _init(textureBaker);
-            bool isPro = EditorGUIUtility.isProSkin;
-            Color backgroundColor = isPro
-                ? new Color32(35, 35, 35, 255)
-                : new Color32(174, 174, 174, 255);
-            multipleMaterialBackgroundColor = MB3_MeshBakerEditorFunctions.MakeTex(8, 8, backgroundColor);
-            backgroundColor = isPro
-                ? new Color32(50, 50, 50, 255)
-                : new Color32(160, 160, 160, 255);
-            multipleMaterialBackgroundColorDarker = MB3_MeshBakerEditorFunctions.MakeTex(8, 8, backgroundColor);
-            backgroundColor = isPro
-                ? new Color32(35, 35, 35, 255)
-                : new Color32(174, 174, 174, 255);
-            editorBoxBackgroundColor = MB3_MeshBakerEditorFunctions.MakeTex(8,8,backgroundColor);
-            multipleMaterialBackgroundStyle.normal.background = multipleMaterialBackgroundColor;
-            multipleMaterialBackgroundStyleDarker.normal.background = multipleMaterialBackgroundColorDarker;
-            editorBoxBackgroundStyle.normal.background = editorBoxBackgroundColor;
-            editorBoxBackgroundStyle.border = new RectOffset(0, 0, 0, 0);
-            editorBoxBackgroundStyle.margin = new RectOffset(5, 5, 5, 5);
-            editorBoxBackgroundStyle.padding = new RectOffset(10, 10, 10, 10);
-
-        }
-
-        public void OnDisable()
-        {
-            if (multipleMaterialBackgroundColor != null) GameObject.DestroyImmediate(multipleMaterialBackgroundColor);
-            if (multipleMaterialBackgroundColorDarker != null)  GameObject.DestroyImmediate(multipleMaterialBackgroundColorDarker);
-            if (editorBoxBackgroundColor != null) GameObject.DestroyImmediate(editorBoxBackgroundColor);
-        }
-
-        public void DrawGUI(SerializedObject textureBaker, MB3_TextureBaker momm, System.Type editorWindow)
-        {
-            if (textureBaker == null)
-            {
-                return;
-            }
-            textureBaker.Update();
-
-            showInstructions = EditorGUILayout.Foldout(showInstructions, "Instructions:");
-            if (showInstructions)
-            {
-                EditorGUILayout.HelpBox("1. Add scene objects or prefabs to combine. For best results these should use the same shader as result material.\n\n" +
-                                        "2. Create Empty Assets For Combined Material(s)\n\n" +
-                                        "3. Check that shader on result material(s) are correct.\n\n" +
-                                        "4. Bake materials into combined material(s).\n\n" +
-                                        "5. Look at warnings/errors in console. Decide if action needs to be taken.\n\n" +
-                                        "6. You are now ready to build combined meshs or adjust meshes to use the combined material(s).", UnityEditor.MessageType.None);
-
-            }
-            //mom.LOG_LEVEL = (MB2_LogLevel) EditorGUILayout.EnumPopup("Log Level", mom.LOG_LEVEL);
-            EditorGUILayout.PropertyField(logLevel, logLevelContent);
-
-            EditorGUILayout.Separator();
-            EditorGUILayout.BeginVertical(editorBoxBackgroundStyle);
-            EditorGUILayout.LabelField("Objects To Be Combined", EditorStyles.boldLabel);
-            if (GUILayout.Button(openToolsWindowLabelContent))
-            {
-                MB3_MeshBakerEditorWindowInterface mmWin = (MB3_MeshBakerEditorWindowInterface)EditorWindow.GetWindow(editorWindow);
-                mmWin.target = (MB3_MeshBakerRoot)momm;
-            }
-            EditorGUILayout.PropertyField(objsToMesh, objectsToCombineGUIContent, true);
-            EditorGUILayout.Separator();
-            EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("Select Objects In Scene"))
-            {
-                Selection.objects = momm.GetObjectsToCombine().ToArray();
-                if (momm.GetObjectsToCombine().Count > 0)
-                {
-                    SceneView.lastActiveSceneView.pivot = momm.GetObjectsToCombine()[0].transform.position;
-                }
-                
-            }
-            if (GUILayout.Button(gc_SortAlongAxis))
-            {
-                MB3_MeshBakerRoot.ZSortObjects sorter = new MB3_MeshBakerRoot.ZSortObjects();
-                sorter.sortAxis = sortOrderAxis.vector3Value;
-                sorter.SortByDistanceAlongAxis(momm.GetObjectsToCombine());
-            }
-            EditorGUILayout.PropertyField(sortOrderAxis, GUIContent.none);
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.EndVertical();
-            EditorGUILayout.Separator();
-            EditorGUILayout.LabelField("Output", EditorStyles.boldLabel);
-            if (GUILayout.Button(createPrefabAndMaterialLabelContent))
-            {
-                string newPrefabPath = EditorUtility.SaveFilePanelInProject("Asset name", "", "asset", "Enter a name for the baked texture results");
-                if (newPrefabPath != null)
-                {
-                    CreateCombinedMaterialAssets(momm, newPrefabPath);
-                }
-            }
-            EditorGUILayout.PropertyField(textureBakeResults, textureBakeResultsGUIContent);
-            if (textureBakeResults.objectReferenceValue != null)
-            {
-                showContainsReport = EditorGUILayout.Foldout(showContainsReport, "Shaders & Materials Contained");
-                if (showContainsReport)
-                {
-                    EditorGUILayout.HelpBox(((MB2_TextureBakeResults)textureBakeResults.objectReferenceValue).GetDescription(), MessageType.Info);
-                }
-            }
-            EditorGUILayout.PropertyField(doMultiMaterial, new GUIContent("Multiple Combined Materials"));
-
-            if (momm.doMultiMaterial)
-            {
-                EditorGUILayout.BeginVertical(multipleMaterialBackgroundStyle);
-                EditorGUILayout.LabelField("Source Material To Combined Mapping", EditorStyles.boldLabel);
-                if (GUILayout.Button(configMultiMatFromObjsContent))
-                {
-                    ConfigureMutiMaterialsFromObjsToCombine(momm, resultMaterials, textureBaker);
-                }
-                EditorGUILayout.BeginHorizontal();
-                resultMaterialsFoldout = EditorGUILayout.Foldout(resultMaterialsFoldout, combinedMaterialsGUIContent);
-
-                if (GUILayout.Button(insertContent, EditorStyles.miniButtonLeft, buttonWidth))
-                {
-                    if (resultMaterials.arraySize == 0)
-                    {
-                        momm.resultMaterials = new MB_MultiMaterial[1];
-                    }
-                    else
-                    {
-                        resultMaterials.InsertArrayElementAtIndex(resultMaterials.arraySize - 1);
-                    }
-                }
-                if (GUILayout.Button(deleteContent, EditorStyles.miniButtonRight, buttonWidth))
-                {
-                    resultMaterials.DeleteArrayElementAtIndex(resultMaterials.arraySize - 1);
-                }
-                EditorGUILayout.EndHorizontal();
-                if (resultMaterialsFoldout)
-                {
-                    for (int i = 0; i < resultMaterials.arraySize; i++)
-                    {
-                        EditorGUILayout.Separator();
-                        if (i % 2 == 1)
-                        {
-                            EditorGUILayout.BeginVertical(multipleMaterialBackgroundStyle);
-                        }
-                        else
-                        {
-                            EditorGUILayout.BeginVertical(multipleMaterialBackgroundStyleDarker);
-                        }
-                        string s = "";
-                        if (i < momm.resultMaterials.Length && momm.resultMaterials[i] != null && momm.resultMaterials[i].combinedMaterial != null) s = momm.resultMaterials[i].combinedMaterial.shader.ToString();
-                        EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.LabelField("---------- submesh:" + i + " " + s, EditorStyles.boldLabel);
-                        if (GUILayout.Button(deleteContent, EditorStyles.miniButtonRight, buttonWidth))
-                        {
-                            resultMaterials.DeleteArrayElementAtIndex(i);
-                        }
-                        EditorGUILayout.EndHorizontal();
-                        if (i < resultMaterials.arraySize)
-                        {
-                            EditorGUILayout.Separator();
-                            SerializedProperty resMat = resultMaterials.GetArrayElementAtIndex(i);
-                            EditorGUILayout.PropertyField(resMat.FindPropertyRelative("combinedMaterial"));
-                            SerializedProperty sourceMats = resMat.FindPropertyRelative("sourceMaterials");
-                            EditorGUILayout.PropertyField(sourceMats, true);
-                        }
-                        EditorGUILayout.EndVertical();
-                    }
-                }
-                EditorGUILayout.EndVertical();
-            }
-            else
-            {
-                EditorGUILayout.PropertyField(resultMaterial, new GUIContent("Combined Mesh Material"));
-            }
-
-            int labelWidth = 200;
-            EditorGUILayout.Separator();
-            EditorGUILayout.BeginVertical(editorBoxBackgroundStyle);
-            EditorGUILayout.LabelField("Material Bake Options", EditorStyles.boldLabel);
-            DrawPropertyFieldWithLabelWidth(atlasPadding, new GUIContent("Atlas Padding"), labelWidth);
-            DrawPropertyFieldWithLabelWidth(maxAtlasSize, maxAtlasSizeGUIContent, labelWidth);
-            DrawPropertyFieldWithLabelWidth(resizePowerOfTwoTextures, resizePowerOfTwoGUIContent, labelWidth);
-            DrawPropertyFieldWithLabelWidth(maxTilingBakeSize, maxTilingBakeSizeGUIContent, labelWidth);
-            //EditorGUILayout.PropertyField(fixOutOfBoundsUVs,fixOutOfBoundsGUIContent);
-            DrawPropertyFieldWithLabelWidth(fixOutOfBoundsUVs, fixOutOfBoundsGUIContent, labelWidth);
-            if (texturePackingAlgorithm.intValue == (int)MB2_PackingAlgorithmEnum.MeshBakerTexturePacker ||
-                texturePackingAlgorithm.intValue == (int)MB2_PackingAlgorithmEnum.MeshBakerTexturePacker_Fast)
-            {
-                DrawPropertyFieldWithLabelWidth(forcePowerOfTwoAtlas, forcePowerOfTwoAtlasContent, labelWidth);
-            }
-            DrawPropertyFieldWithLabelWidth(considerNonTextureProperties, considerNonTexturePropertiesContent, labelWidth);
-            if (texturePackingAlgorithm.intValue == (int)MB2_PackingAlgorithmEnum.UnitysPackTextures)
-            {
-                EditorGUILayout.HelpBox("Unity's texture packer has memory problems and frequently crashes the editor.", MessageType.Warning);
-            }
-            EditorGUILayout.PropertyField(texturePackingAlgorithm, texturePackingAgorithmGUIContent);
-            EditorGUILayout.PropertyField(customShaderProperties, customShaderPropertyNamesGUIContent, true);
-            EditorGUILayout.EndVertical();
-            EditorGUILayout.Separator();
-            Color oldColor = GUI.backgroundColor;
-            GUI.color = buttonColor;
-            if (GUILayout.Button("Bake Materials Into Combined Material"))
-            {
-                momm.CreateAtlases(updateProgressBar, true, new MB3_EditorMethods());
-                EditorUtility.ClearProgressBar();
-                if (momm.textureBakeResults != null) EditorUtility.SetDirty(momm.textureBakeResults);
-            }
-            GUI.backgroundColor = oldColor;
-            textureBaker.ApplyModifiedProperties();
-            if (GUI.changed)
-            {
-                textureBaker.SetIsDifferentCacheDirty();
-            }
+	
+			EditorGUILayout.Separator();		
+			EditorGUILayout.LabelField("Objects To Be Combined",EditorStyles.boldLabel);	
+			if (GUILayout.Button(openToolsWindowLabelContent)){
+				MB3_MeshBakerEditorWindowInterface  mmWin = (MB3_MeshBakerEditorWindowInterface) EditorWindow.GetWindow(editorWindow);
+				mmWin.target = (MB3_MeshBakerRoot) mom;
+			}	
+			EditorGUILayout.PropertyField(objsToMesh,objectsToCombineGUIContent, true);		
+			
+			EditorGUILayout.Separator();
+			EditorGUILayout.LabelField("Output",EditorStyles.boldLabel);
+			if (GUILayout.Button(createPrefabAndMaterialLabelContent)){
+				string newPrefabPath = EditorUtility.SaveFilePanelInProject("Asset name", "", "asset", "Enter a name for the baked texture results");
+				if (newPrefabPath != null){
+					CreateCombinedMaterialAssets(mom, newPrefabPath);
+				}
+			}	
+			EditorGUILayout.PropertyField(textureBakeResults, textureBakeResultsGUIContent);
+			if (textureBakeResults.objectReferenceValue != null){
+				showContainsReport = EditorGUILayout.Foldout(showContainsReport, "Shaders & Materials Contained");
+				if (showContainsReport){
+					EditorGUILayout.HelpBox(((MB2_TextureBakeResults)textureBakeResults.objectReferenceValue).GetDescription(), MessageType.Info);	
+				}
+			}
+			EditorGUILayout.PropertyField(doMultiMaterial,new GUIContent("Multiple Combined Materials"));		
+			
+			if (mom.doMultiMaterial){
+				EditorGUILayout.LabelField("Source Material To Combined Mapping",EditorStyles.boldLabel);
+				if (GUILayout.Button(configMultiMatFromObjsContent)){
+					ConfigureMutiMaterialsFromObjsToCombine(mom,resultMaterials,textureBaker);	
+				}
+				EditorGUILayout.BeginHorizontal();
+				resultMaterialsFoldout = EditorGUILayout.Foldout(resultMaterialsFoldout, combinedMaterialsGUIContent);
+				
+				if(GUILayout.Button(insertContent, EditorStyles.miniButtonLeft, buttonWidth)){
+					if (resultMaterials.arraySize == 0){
+						mom.resultMaterials = new MB_MultiMaterial[1];	
+					} else {
+						resultMaterials.InsertArrayElementAtIndex(resultMaterials.arraySize-1);
+					}
+				}
+				if(GUILayout.Button(deleteContent, EditorStyles.miniButtonRight, buttonWidth)){
+					resultMaterials.DeleteArrayElementAtIndex(resultMaterials.arraySize-1);
+				}			
+				EditorGUILayout.EndHorizontal();
+				if (resultMaterialsFoldout){
+					for(int i = 0; i < resultMaterials.arraySize; i++){
+						EditorGUILayout.Separator();
+						string s = "";
+						if (i < mom.resultMaterials.Length && mom.resultMaterials[i] != null && mom.resultMaterials[i].combinedMaterial != null) s = mom.resultMaterials[i].combinedMaterial.shader.ToString();
+						EditorGUILayout.BeginHorizontal();
+						EditorGUILayout.LabelField("---------- submesh:" + i + " " + s,EditorStyles.boldLabel);
+						if(GUILayout.Button(deleteContent, EditorStyles.miniButtonRight, buttonWidth)){
+							resultMaterials.DeleteArrayElementAtIndex(i);
+						}
+						if (i < resultMaterials.arraySize){
+							EditorGUILayout.EndHorizontal();
+							EditorGUILayout.Separator();
+							SerializedProperty resMat = resultMaterials.GetArrayElementAtIndex(i);
+							EditorGUILayout.PropertyField(resMat.FindPropertyRelative("combinedMaterial"));
+							SerializedProperty sourceMats = resMat.FindPropertyRelative("sourceMaterials");
+							EditorGUILayout.PropertyField(sourceMats,true);
+						}
+					}
+				}
+				
+			} else {			
+				EditorGUILayout.PropertyField(resultMaterial,new GUIContent("Combined Mesh Material"));
+			}				
+			
+			EditorGUILayout.Separator();
+			EditorGUILayout.LabelField("Material Bake Options",EditorStyles.boldLabel);		
+			EditorGUILayout.PropertyField(atlasPadding,new GUIContent("Atlas Padding"));
+			EditorGUILayout.PropertyField(resizePowerOfTwoTextures, resizePowerOfTwoGUIContent);
+			EditorGUILayout.PropertyField(customShaderPropNames,customShaderPropertyNamesGUIContent,true);
+			EditorGUILayout.PropertyField(maxTilingBakeSize, maxTilingBakeSizeGUIContent);
+			EditorGUILayout.PropertyField(fixOutOfBoundsUVs,fixOutOfBoundsGUIContent);
+			if (texturePackingAlgorithm.intValue == (int) MB2_PackingAlgorithmEnum.UnitysPackTextures){
+				EditorGUILayout.HelpBox("Unity's texture packer has memory problems and frequently crashes the editor.",MessageType.Warning);
+			}
+			EditorGUILayout.PropertyField(texturePackingAlgorithm, texturePackingAgorithmGUIContent);
+			if (texturePackingAlgorithm.intValue == (int) MB2_PackingAlgorithmEnum.MeshBakerTexturePacker){
+				EditorGUILayout.PropertyField(forcePowerOfTwoAtlas,forcePowerOfTwoAtlasContent);
+			}
+			EditorGUILayout.Separator();				
+			if (GUILayout.Button("Bake Materials Into Combined Material")){
+				mom.CreateAtlases(updateProgressBar, true, new MB3_EditorMethods());
+				EditorUtility.ClearProgressBar();
+				if (mom.textureBakeResults != null) EditorUtility.SetDirty(mom.textureBakeResults);
+			}
+			textureBaker.ApplyModifiedProperties();		
+			textureBaker.SetIsDifferentCacheDirty();
 		}
-
-
-
-        public void DrawPropertyFieldWithLabelWidth(SerializedProperty prop, GUIContent content, int labelWidth)
-        {
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField(content, GUILayout.Width(labelWidth));
-            EditorGUILayout.PropertyField(prop, noneContent);
-            EditorGUILayout.EndHorizontal();
-        }
-        	
+			
 		public void updateProgressBar(string msg, float progress){
 			EditorUtility.DisplayProgressBar("Combining Meshes", msg, progress);
 		}
@@ -382,10 +239,10 @@ namespace DigitalOpus.MB.Core{
 				for (int i = 0; i < mom.GetObjectsToCombine().Count; i++){
 					GameObject go = mom.GetObjectsToCombine()[i];
 					Mesh m = MB_Utility.GetMesh(go);
-					MB_Utility.MeshAnalysisResult dummyMar = new MB_Utility.MeshAnalysisResult();
+					Rect dummy = new Rect();
 					Renderer r = go.GetComponent<Renderer>();	
 					for (int j = 0; j < r.sharedMaterials.Length; j++){
-						if (MB_Utility.hasOutOfBoundsUVs(m, ref dummyMar, j)){
+						if (MB_Utility.hasOutOfBoundsUVs(m, ref dummy, j)){
 							if (!obUVobject2material_map.ContainsKey(r.sharedMaterials[j])){
 								Debug.LogWarning("Object " + go + " submesh " + j + " uses UVs outside the range 0,0..1,1 to generate tiling. This object has been mapped to its own submesh in the combined mesh. It can share a submesh with other objects that use different materials if you use the fix out of bounds UVs feature which will bake the tiling");
 								obUVobject2material_map.Add(r.sharedMaterials[j],m);
@@ -459,23 +316,19 @@ namespace DigitalOpus.MB.Core{
 			}
 		}else{
 			matNames.Add( folderPath +  baseName + "-mat.mat" );
-			Material newMat = null;
+			Material newMat = new Material(Shader.Find("Diffuse"));
 			if (mom.GetObjectsToCombine().Count > 0 && mom.GetObjectsToCombine()[0] != null){
 				Renderer r = mom.GetObjectsToCombine()[0].GetComponent<Renderer>();
 				if (r == null){
 					Debug.LogWarning("Object " + mom.GetObjectsToCombine()[0] + " does not have a Renderer on it.");
 				} else {
 					if (r.sharedMaterial != null){
-						newMat = new Material(r.sharedMaterial);
-						//newMat.shader = r.sharedMaterial.shader;					
+						newMat.shader = r.sharedMaterial.shader;					
 						MB3_TextureBaker.ConfigureNewMaterialToMatchOld(newMat,r.sharedMaterial);
 					}
 				}
 			} else {
 				Debug.Log("If you add objects to be combined before creating the Combined Material Assets. Then Mesh Baker will create a result material that is a duplicate of the material on the first object to be combined. This saves time configuring the shader.");	
-			}
-			if (newMat == null){ 
-				newMat = new Material(Shader.Find("Diffuse"));
 			}
 			AssetDatabase.CreateAsset(newMat, matNames[0]);
 			mom.resultMaterial = (Material) AssetDatabase.LoadAssetAtPath(matNames[0],typeof(Material));

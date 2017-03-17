@@ -8,7 +8,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 499468296, guid: 0f20771f34eefe549a7337a23c679743, type: 3}
+  m_Script: {fileID: 11500000, guid: 7d41887b1546f5c44ab54e7e65aad3bc, type: 3}
   m_Name: trees
   m_EditorClassIdentifier: 
   combinedMaterialInfo:
@@ -23,18 +23,6 @@ MonoBehaviour:
     y: 0
     width: 1
     height: 1
-  materialsAndUVRects:
-  - material: {fileID: 2100000, guid: 071cd512bd11410ba00004694ada8c59, type: 2}
-    atlasRect:
-      x: 0
-      y: 0
-      width: 1
-      height: 1
-    atlasSubrectMaterialOnly:
-      x: -0
-      y: -0
-      width: 1
-      height: 1
   resultMaterial: {fileID: 2100000, guid: f4559e1200d26694a94c20e5c736788b, type: 2}
   resultMaterials: []
   doMultiMaterial: 0

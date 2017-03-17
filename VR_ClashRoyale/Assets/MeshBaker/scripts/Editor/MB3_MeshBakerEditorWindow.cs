@@ -5,13 +5,16 @@
 using UnityEditor;
 using UnityEngine;
 using System;
-using System.Reflection;
 using System.Collections.Generic;
-using System.Linq;
 using DigitalOpus.MB.Core;
 
 public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindowInterface
 {
+	public enum LightMapOption{
+		ignore,
+		preserveLightmapping
+	}	
+	
 	public MB3_MeshBakerRoot _target = null;
 	public MonoBehaviour target{
 		get{ return _target; }
@@ -22,256 +25,103 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 	MB3_TextureBaker textureBaker;
 	MB3_MeshBaker meshBaker;
 	MB3_MeshBakerGrouperCore textureBakerGrouper;
-    SerializedObject serializedObject;
-      
-    GUIContent GUIContentRegExpression = new GUIContent("Matches Regular Expression", @"A valid # regular express. Examples:" + "\n\n" +
-        @" ([A-Za-z0-9\-]+)(LOD1) matches one or more chars,numbers and hyphen ending with LOD1." + "\n\n" +
-        @" (Grass)([A-Za-z0-9\-\(\) ]+) matches the string 'Grass' followed by characters, numbers, hyphen, brackets or space." + "\n\n");
-
-    string helpBoxString = "";
-    string regExParseError = "";
-    bool onlyStaticObjects = false;
+	
+	bool autoGenerateMeshBakers = false;
+	bool onlyStaticObjects = false;
 	bool onlyEnabledObjects = false;
 	bool excludeMeshesWithOBuvs = true;
-	bool excludeMeshesAlreadyAddedToBakers = true;
 	int lightmapIndex = -2;
-    string searchRegEx = "";
 	Material shaderMat = null;
 	Material mat = null;
 	
 	bool tbFoldout = false;
 	bool mbFoldout = false;
 	
+	bool generate_IncludeStaticObjects = true;
+	LightMapOption generate_LightmapOption = LightMapOption.ignore;
 	string generate_AssetsFolder = "";
-
-	List<List<GameObjectFilterInfo>> sceneAnalysisResults = new List<List<GameObjectFilterInfo>>();
-	bool[] sceneAnalysisResultsFoldouts = new bool[0];
-
+	
 	MB3_MeshBakerEditorInternal mbe = new MB3_MeshBakerEditorInternal();
 	MB3_TextureBakerEditorInternal tbe = new MB3_TextureBakerEditorInternal();
 
-	const int NUM_FILTERS = 5;
-	int[] groupByFilterIdxs = new int[NUM_FILTERS];
-	string[] groupByOptionNames;
-	IGroupByFilter[] groupByOptionFilters;
-
 	Vector2 scrollPos = Vector2.zero;
-	Vector2 scrollPos2 = Vector2.zero;
-
-	int selectedTab = 0;
-	GUIContent[] tabs = new GUIContent[]{new GUIContent("Analyse Scene & Generate Bakers"),new GUIContent("Search For Meshes To Add")};
-
+	
+	GUIContent autoGenerateGUIContent = new GUIContent("Auto Generate Bakers (Experimental)", "Generates MeshBakers in the scene based on the groupings in the report.");
+	
 	void OnGUI()
 	{
-		selectedTab = GUILayout.Toolbar(selectedTab,tabs);
 		scrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.Width(position.width), GUILayout.Height(position.height));
 
-		if (selectedTab == 0){
-			drawTabAnalyseScene();
-		} else {
-			drawTabAddObjectsToBakers();
-		}
-
-		EditorGUILayout.EndScrollView();
-	}
-
-    void OnEnable()
-    {
-        if (textureBaker != null)
-        {
-            serializedObject = new SerializedObject(textureBaker);
-            tbe.OnEnable(serializedObject);
-        } else if (meshBaker != null)
-        {
-            serializedObject = new SerializedObject(meshBaker);
-            mbe.OnEnable(serializedObject);
-        }
-    }
-
-    void OnDisable()
-    {
-        tbe.OnDisable();
-        mbe.OnDisable();
-    }
-
-	public static bool InterfaceFilter(Type typeObj, System.Object criteriaObj)
-	{
-		return typeObj.ToString() == criteriaObj.ToString();
-	}
-
-    void populateGroupByFilters()
-    {
-        string qualifiedInterfaceName = "DigitalOpus.MB.Core.IGroupByFilter";
-        var interfaceFilter = new TypeFilter(InterfaceFilter);
-        List<Type> types = new List<Type>();
-        foreach (Assembly ass in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            System.Collections.IEnumerable typesIterator = null;
-            try
-            {
-                typesIterator = ass.GetTypes();
-            }
-            catch (Exception e)
-            {
-                //Debug.Log("The assembly that I could not read types for was: " + ass.GetName());
-                //suppress error
-                e.Equals(null);
-            }
-            if (typesIterator != null)
-            {
-                foreach (Type ty in ass.GetTypes())
-                {
-                    var myInterfaces = ty.FindInterfaces(interfaceFilter, qualifiedInterfaceName);
-                    if (myInterfaces.Length > 0)
-                    {
-                        types.Add(ty);
-                    }
-                }
-            }
-        }
-
-        List<string> filterNames = new List<string>();
-        List<IGroupByFilter> filters = new List<IGroupByFilter>();
-        filterNames.Add("None");
-        filters.Add(null);
-        foreach (Type tt in types)
-        {
-            if (!tt.IsAbstract && !tt.IsInterface)
-            {
-                IGroupByFilter instance = (IGroupByFilter)Activator.CreateInstance(tt);
-                filterNames.Add(instance.GetName());
-                filters.Add(instance);
-            }
-        }
-        groupByOptionNames = filterNames.ToArray();
-        groupByOptionFilters = filters.ToArray();
-    }
-
-	void drawTabAnalyseScene(){
-
-		//first time we are displaying collect the filters
-		if (groupByOptionNames == null || groupByOptionNames.Length == 0){
-            //var types = AppDomain.CurrentDomain.GetAssemblies()
-            //	.SelectMany(s => s.GetTypes())
-            //		.Where(p => type.IsAssignableFrom(p));
-            populateGroupByFilters();
-
-            //set filter initial values
-            for (int i = 0; i < groupByOptionFilters.Length; i++){
-				if (groupByOptionFilters[i] is GroupByShader){
-					groupByFilterIdxs[0] = i;
-					break;
-				}
-			}
-			for (int i = 0; i < groupByOptionFilters.Length; i++){
-				if (groupByOptionFilters[i] is GroupByStatic){
-					groupByFilterIdxs[1] = i;
-					break;
-				}
-			}
-			for (int i = 0; i < groupByOptionFilters.Length; i++){
-				if (groupByOptionFilters[i] is GroupByRenderType){
-					groupByFilterIdxs[2] = i;
-					break;
-				}
-			}
-			for (int i = 0; i < groupByOptionFilters.Length; i++){
-				if (groupByOptionFilters[i] is GroupByOutOfBoundsUVs){
-					groupByFilterIdxs[3] = i;
-					break;
-				}
-			}
-			groupByFilterIdxs[4] = 0; //none
-		}
-		if (groupByFilterIdxs == null || groupByFilterIdxs.Length < NUM_FILTERS){
-			groupByFilterIdxs = new int[]{
-				0,0,0,0,0
-			};
-		}
+		EditorGUILayout.LabelField("Generate Report",EditorStyles.boldLabel);		
 		EditorGUILayout.HelpBox("List shaders in scene prints a report to the console of shaders and which objects use them. This is useful for planning which objects to combine.", UnityEditor.MessageType.None);
-
-		groupByFilterIdxs[0] = EditorGUILayout.Popup("Group By:",groupByFilterIdxs[0],groupByOptionNames);
-		for (int i = 1; i < NUM_FILTERS; i++){
-			groupByFilterIdxs[i] = EditorGUILayout.Popup("Then Group By:",groupByFilterIdxs[i],groupByOptionNames);
-		}
-
-		EditorGUILayout.BeginHorizontal();
-		if (GUILayout.Button("Select Folder For Combined Material Assets") ){
-			generate_AssetsFolder = EditorUtility.SaveFolderPanel("Create Combined Material Assets In Folder", "", "");	
-			generate_AssetsFolder = "Assets" + generate_AssetsFolder.Replace(Application.dataPath, "") + "/";
-		}
-		EditorGUILayout.LabelField("Folder: " + generate_AssetsFolder);
-		EditorGUILayout.EndHorizontal();
 		
-		EditorGUILayout.BeginHorizontal();
 		if (GUILayout.Button("List Shaders In Scene")){
-			EditorUtility.DisplayProgressBar("Analysing Scene","",.05f);
-			try{
-				listMaterialsInScene();
-			} catch (Exception ex){
-				Debug.LogError(ex.StackTrace);
-			} finally {
-				EditorUtility.ClearProgressBar();
-			}
+			listMaterialsInScene(false);
 		}
 		
-		if (GUILayout.Button("Bake Every MeshBaker In Scene")){
-			try{
-				MB3_TextureBaker[] texBakers = (MB3_TextureBaker[]) FindObjectsOfType(typeof(MB3_TextureBaker));
-				for (int i = 0; i < texBakers.Length; i++){
-					texBakers[i].CreateAtlases(updateProgressBar, true, new MB3_EditorMethods());	
-				}
-				MB3_MeshBakerCommon[] mBakers = (MB3_MeshBakerCommon[]) FindObjectsOfType(typeof(MB3_MeshBakerCommon));
-				for (int i = 0; i < mBakers.Length; i++){
-					if (mBakers[i].textureBakeResults != null){
-						MB3_MeshBakerEditorFunctions.BakeIntoCombined(mBakers[i],new MB3_EditorMethods());	
-					}
-				}					
-			} catch (Exception e) {
-				Debug.LogError(e);
-			}finally{
-				EditorUtility.ClearProgressBar();
+		EditorGUILayout.Separator();
+		MB_EditorUtil.DrawSeparator();
+
+		EditorGUILayout.HelpBox("This feature is experimental. It should be safe to use as all it does is generate game objects with Mesh and Material bakers "+
+								"on them and assets for the combined materials.\n\n" +
+								"Creates bakers and combined material assets in your scene based on the groupings in 'Generate Report'."+
+								"Some configuration may still be required after bakers are generated. Groups are created for objects that " +
+								"use the same material(s), shader(s) and lightmap. These groups should produce good results when baked.\n\n" +
+							    "This feature groups objects conservatively so bakes almost always work.   This is not the only way to group objects. Objects with different shaders can also be grouped but results are" +
+							    " less preditable. Meshes with submeshes are only" +
+								"grouped if all meshes use the same set of shaders.", UnityEditor.MessageType.None);
+				
+		EditorGUILayout.LabelField(autoGenerateGUIContent, EditorStyles.boldLabel);		
+		autoGenerateMeshBakers = EditorGUILayout.Foldout(autoGenerateMeshBakers,"Show Tools");
+		if ( autoGenerateMeshBakers ){
+
+			EditorGUILayout.BeginHorizontal();
+			if (GUILayout.Button("Select Folder For Combined Material Assets") ){
+				generate_AssetsFolder = EditorUtility.SaveFolderPanel("Create Combined Material Assets In Folder", "", "");	
+				generate_AssetsFolder = "Assets" + generate_AssetsFolder.Replace(Application.dataPath, "") + "/";
 			}
-		}
-		EditorGUILayout.EndHorizontal();
-
-		if (sceneAnalysisResults.Count > 0){
-			float height = position.height - 150f;
-			if (height < 500f) height = 500f;
-			MB_EditorUtil.DrawSeparator();
-			scrollPos2 = EditorGUILayout.BeginScrollView(scrollPos2,false,true); //(scrollPos2,, GUILayout.Width(position.width - 20f), GUILayout.Height(height));
-			EditorGUILayout.LabelField("Shaders In Scene",EditorStyles.boldLabel);
-			for(int i = 0; i < sceneAnalysisResults.Count; i++){
-				List<GameObjectFilterInfo> gows = sceneAnalysisResults[i];
-				EditorGUILayout.BeginHorizontal();
-				if (GUILayout.Button ("Generate Baker",GUILayout.Width(200))){
-					createAndSetupBaker(gows,generate_AssetsFolder);
-				}
-				string descr = gows[0].GetDescription(GameObjectFilterInfo.filters,gows[0]);
-
-				EditorGUILayout.LabelField(descr, EditorStyles.wordWrappedLabel);
-				EditorGUILayout.EndHorizontal();
-				sceneAnalysisResultsFoldouts[i] = EditorGUILayout.Foldout(sceneAnalysisResultsFoldouts[i],"");
-				if (sceneAnalysisResultsFoldouts[i]){ 
-					EditorGUI.indentLevel += 1;
-					for (int j = 0; j < gows.Count; j++){
-						if (gows[j].go != null){
-							EditorGUILayout.LabelField(gows[j].go.name + "  " + gows[j].GetDescription(GameObjectFilterInfo.filters,gows[j]));
+			EditorGUILayout.LabelField("Folder: " + generate_AssetsFolder);
+			EditorGUILayout.EndHorizontal();
+			EditorGUILayout.BeginHorizontal();
+			EditorGUILayout.LabelField("Included Objects Must Be Static", GUILayout.Width(200));
+			generate_IncludeStaticObjects = EditorGUILayout.Toggle(GUIContent.none, generate_IncludeStaticObjects);
+			EditorGUILayout.EndHorizontal();
+			generate_LightmapOption = (LightMapOption) EditorGUILayout.EnumPopup("Lightmapping", generate_LightmapOption);
+			EditorGUILayout.BeginHorizontal();
+			if (GUILayout.Button("Generate Mesh Bakers")){
+				listMaterialsInScene(true);
+			}
+//			if(GUILayout.Button("BuildMultiMatForAll")) {
+//				MB3_TextureBaker[] tex = (MB3_TextureBaker[])FindObjectsOfType(typeof(MB3_TextureBaker));
+//				for(int i = 0;i < tex.Length;i++) {
+//					BuildAllSource(tex[i]);	
+//				}
+//			}
+			if (GUILayout.Button("Bake Every MeshBaker In Scene")){
+				try{
+					MB3_TextureBaker[] texBakers = (MB3_TextureBaker[]) FindObjectsOfType(typeof(MB3_TextureBaker));
+					for (int i = 0; i < texBakers.Length; i++){
+						texBakers[i].CreateAtlases(updateProgressBar, true, new MB3_EditorMethods());	
+					}
+					MB3_MeshBakerCommon[] mBakers = (MB3_MeshBakerCommon[]) FindObjectsOfType(typeof(MB3_MeshBakerCommon));
+					for (int i = 0; i < mBakers.Length; i++){
+						if (mBakers[i].textureBakeResults != null){
+					    	MB3_MeshBakerEditorFunctions.BakeIntoCombined(mBakers[i]);	
 						}
-					}
-					EditorGUI.indentLevel -= 1;
+					}					
+				} catch (Exception e) {
+					Debug.LogError(e);
+				}finally{
+					EditorUtility.ClearProgressBar();
 				}
-
 			}
-			EditorGUILayout.EndScrollView();
-			MB_EditorUtil.DrawSeparator();
+			EditorGUILayout.EndHorizontal();
 		}
-	}
-
-	void drawTabAddObjectsToBakers(){
-        if (helpBoxString == null) helpBoxString = "";
-		EditorGUILayout.HelpBox("To add, select one or more objects in the hierarchy view. Child Game Objects with MeshRender or SkinnedMeshRenderer will be added. Use the fields below to filter what is added." +
-                                "To remove, use the fields below to filter what is removed.\n" + helpBoxString, UnityEditor.MessageType.None);
+		MB_EditorUtil.DrawSeparator();
+		EditorGUILayout.Separator();		
+		
+		EditorGUILayout.LabelField("Add Selected Meshes To Texture Baker",EditorStyles.boldLabel);
+		EditorGUILayout.HelpBox("Select one or more objects in the hierarchy view. Child Game Objects with MeshRender will be added. Use the fields below to filter what is added.", UnityEditor.MessageType.None);
 		target = (MB3_MeshBakerRoot) EditorGUILayout.ObjectField("Target to add objects to",target,typeof(MB3_MeshBakerRoot),true);
 		
 		if (target != null){
@@ -279,35 +129,29 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 		} else {
 			targetGO = null;	
 		}
-		
+			
 		if (targetGO != oldTargetGO && targetGO != null){
 			textureBaker = targetGO.GetComponent<MB3_TextureBaker>();
 			meshBaker = targetGO.GetComponent<MB3_MeshBaker>();
+//			MB3_MeshBakerGrouper textureBakerGrouperMB = targetGO.GetComponent<MB3_MeshBakerGrouper>();
+//			if (textureBakerGrouperMB != null){
+//				textureBakerGrouper = textureBakerGrouperMB.grouper;
+//			}
 			tbe = new MB3_TextureBakerEditorInternal();
 			mbe = new MB3_MeshBakerEditorInternal();
 			oldTargetGO = targetGO;
-            if (textureBaker != null)
-            {
-                serializedObject = new SerializedObject(textureBaker);
-                tbe.OnEnable(serializedObject);
-            }
-            else if (meshBaker != null)
-            {
-                serializedObject = new SerializedObject(meshBaker);
-                mbe.OnEnable(serializedObject);
-            }
-        }
-        
-
-		EditorGUIUtility.labelWidth = 300;
+		}
+//		if (textureBakerGrouper == null){
+//			textureBakerGrouper = new MB3_MeshBakerGrouperCore();
+//			textureBakerGrouper.clusterGrouper = new MB3_MeshBakerGrouperCore.ClusterGrouper();
+//		}
+		
 		onlyStaticObjects = EditorGUILayout.Toggle("Only Static Objects", onlyStaticObjects);
 		
 		onlyEnabledObjects = EditorGUILayout.Toggle("Only Enabled Objects", onlyEnabledObjects);
 		
 		excludeMeshesWithOBuvs = EditorGUILayout.Toggle("Exclude meshes with out-of-bounds UVs", excludeMeshesWithOBuvs);
-
-		excludeMeshesAlreadyAddedToBakers = EditorGUILayout.Toggle("Exclude GameObjects already added to bakers", excludeMeshesAlreadyAddedToBakers);
-
+			
 		mat = (Material) EditorGUILayout.ObjectField("Using Material",mat,typeof(Material),true);
 		shaderMat = (Material) EditorGUILayout.ObjectField("Using Shader",shaderMat,typeof(Material),true);
 		
@@ -324,33 +168,23 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 		EditorGUILayout.BeginHorizontal();
 		EditorGUILayout.LabelField("Using Lightmap Index ");
 		lightmapIndex = EditorGUILayout.IntPopup(lightmapIndex,
-		                                         lightmapDisplayValues,
-		                                         lightmapValues);
+												 lightmapDisplayValues,
+												 lightmapValues);
 		EditorGUILayout.EndHorizontal();
-        if (regExParseError != null && regExParseError.Length > 0)
-        {
-            EditorGUILayout.HelpBox("Error In Regular Expression:\n" + regExParseError, MessageType.Error);
-        }
-        searchRegEx = EditorGUILayout.TextField(GUIContentRegExpression, searchRegEx);
+		EditorGUILayout.Separator();
 
+//		MB3_MeshBakerGrouperEditor.DrawGrouperInspector(textureBakerGrouper);
 
-        EditorGUILayout.Separator();
-
-        EditorGUILayout.BeginHorizontal();
-		if (GUILayout.Button("Add Selected Meshes To Target")){
+		if (GUILayout.Button("Add Selected Meshes")){
 			addSelectedObjects();
 		}
-        if (GUILayout.Button("Remove Matching Meshes From Target"))
-        {
-            removeSelectedObjects();
-        }
-        EditorGUILayout.EndHorizontal();
+			
 		
 		if (textureBaker != null){
 			MB_EditorUtil.DrawSeparator();
 			tbFoldout = EditorGUILayout.Foldout(tbFoldout,"Texture Baker");
 			if (tbFoldout){
-				tbe.DrawGUI(serializedObject, (MB3_TextureBaker) textureBaker, typeof(MB3_MeshBakerEditorWindow));
+				tbe.DrawGUI((MB3_TextureBaker) textureBaker, typeof(MB3_MeshBakerEditorWindow));
 			}
 			
 		}
@@ -358,283 +192,150 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 			MB_EditorUtil.DrawSeparator();
 			mbFoldout = EditorGUILayout.Foldout(mbFoldout,"Mesh Baker");
 			if (mbFoldout){
-				mbe.DrawGUI(serializedObject, (MB3_MeshBaker) meshBaker, typeof(MB3_MeshBakerEditorWindow));
+				mbe.DrawGUI((MB3_MeshBaker) meshBaker, typeof(MB3_MeshBakerEditorWindow));
 			}
 		}
+		EditorGUILayout.EndScrollView();
 	}
+	
+	List<GameObject> GetFilteredList(){
+		List<GameObject> newMomObjs = new List<GameObject>();
+		MB3_MeshBakerRoot mom = (MB3_MeshBakerRoot) target;
+		if (mom == null){
+			Debug.LogError("Must select a target MeshBaker to add objects to");
+			return newMomObjs;
+		}		
+		GameObject dontAddMe = null;
+		Renderer r = MB_Utility.GetRenderer(mom.gameObject);
+		if (r != null){ //make sure that this MeshBaker object is not in list
+			dontAddMe = r.gameObject;	
+		}
+		
+		int numInSelection = 0;
+		int numStaticExcluded = 0;
+		int numEnabledExcluded = 0;
+		int numLightmapExcluded = 0;
+		int numOBuvExcluded = 0;
 
-    List<GameObject> GetFilteredList() {
-        List<GameObject> newMomObjs = new List<GameObject>();
-        MB3_MeshBakerRoot mom = (MB3_MeshBakerRoot)target;
-        if (mom == null) {
-            Debug.LogError("Must select a target MeshBaker to add objects to");
-            return newMomObjs;
-        }
-        GameObject dontAddMe = null;
-        Renderer r = MB_Utility.GetRenderer(mom.gameObject);
-        if (r != null) { //make sure that this MeshBaker object is not in list
-            dontAddMe = r.gameObject;
-        }
-
-        MB3_MeshBakerRoot[] allBakers = FindObjectsOfType<MB3_MeshBakerRoot>();
-        HashSet<GameObject> objectsAlreadyIncludedInBakers = new HashSet<GameObject>();
-        for (int i = 0; i < allBakers.Length; i++) {
-            List<GameObject> objsToCombine = allBakers[i].GetObjectsToCombine();
-            for (int j = 0; j < objsToCombine.Count; j++) {
-                if (objsToCombine[j] != null) objectsAlreadyIncludedInBakers.Add(objsToCombine[j]);
-            }
-        }
-
-        GameObject[] gos = Selection.gameObjects;
-        if (gos.Length == 0) {
-            Debug.LogWarning("No objects selected in hierarchy view. Nothing added. Try selecting some objects.");
-            return newMomObjs;
-        }
-
-        List<GameObject> mrs = new List<GameObject>();
-        for (int i = 0; i < gos.Length; i++)
-        {
-            GameObject go = gos[i];
-            Renderer[] rs = go.GetComponentsInChildren<Renderer>();
-            for (int j = 0; j < rs.Length; j++)
-            {
-                if (rs[j] is MeshRenderer || rs[j] is SkinnedMeshRenderer)
-                {
-                    mrs.Add(rs[j].gameObject);
-                }
-            }
-        }
-        newMomObjs = FilterList(mrs, objectsAlreadyIncludedInBakers, dontAddMe);
-        return newMomObjs;
-    }
-
-    List<GameObject> FilterList(List<GameObject> mrss, HashSet<GameObject> objectsAlreadyIncludedInBakers, GameObject dontAddMe) {
-        int numInSelection = 0;
-        int numStaticExcluded = 0;
-        int numEnabledExcluded = 0;
-        int numLightmapExcluded = 0;
-        int numOBuvExcluded = 0;
-        int numMatExcluded = 0;
-        int numShaderExcluded = 0;
-        int numRegExExcluded = 0;
-        int numAlreadyIncludedExcluded = 0;
-        System.Text.RegularExpressions.Regex regex = null;
-        if (searchRegEx != null && searchRegEx.Length > 0)
-        {
-
-            try
-            {
-                regex = new System.Text.RegularExpressions.Regex(searchRegEx);
-                regExParseError = "";
-            }
-            catch (Exception ex)
-            {
-                regExParseError = ex.Message;
-            }
-        }
-        Dictionary<int,MB_Utility.MeshAnalysisResult> meshAnalysisResultsCache = new Dictionary<int, MB_Utility.MeshAnalysisResult>(); //cache results
-        List<GameObject> newMomObjs = new List<GameObject>();
-        for (int j = 0; j < mrss.Count; j++)
-        {
-            if (mrss[j] == null)
-            {
-                continue;
-            }
-            Renderer mrs = mrss[j].GetComponent<Renderer>();
-            if (mrs is MeshRenderer || mrs is SkinnedMeshRenderer)
-            {
-                if (mrs.GetComponent<TextMesh>() != null)
-                {
-                    continue; //don't add TextMeshes
-                }
-                numInSelection++;
-                if (!newMomObjs.Contains(mrs.gameObject))
-                {
-                    bool addMe = true;
-                    if (!mrs.gameObject.isStatic && onlyStaticObjects)
-                    {
-                        numStaticExcluded++;
-                        addMe = false;
-                        continue;
-                    }
-
-                    if (!mrs.enabled && onlyEnabledObjects)
-                    {
-                        numEnabledExcluded++;
-                        addMe = false;
-                        continue;
-                    }
-
-                    if (lightmapIndex != -2)
-                    {
-                        if (mrs.lightmapIndex != lightmapIndex)
-                        {
-                            numLightmapExcluded++;
-                            addMe = false;
-                            continue;
-                        }
-                    }
-
-                    if (excludeMeshesAlreadyAddedToBakers && objectsAlreadyIncludedInBakers.Contains(mrs.gameObject))
-                    {
-                        numAlreadyIncludedExcluded++;
-                        addMe = false;
-                        continue;
-                    }
-
-                    Mesh mm = MB_Utility.GetMesh(mrs.gameObject);
-                    if (mm != null)
-                    {
-                        MB_Utility.MeshAnalysisResult mar;
-                        if (!meshAnalysisResultsCache.TryGetValue(mm.GetInstanceID(), out mar))
-                        {
-                            MB_Utility.hasOutOfBoundsUVs(mm, ref mar);
-                            meshAnalysisResultsCache.Add(mm.GetInstanceID(), mar);
-                        }
-                        if (mar.hasOutOfBoundsUVs && excludeMeshesWithOBuvs)
-                        {
-                            numOBuvExcluded++;
-                            addMe = false;
-                            continue;
-                        }
-                    }
-
-                    if (shaderMat != null)
-                    {
-                        Material[] nMats = mrs.sharedMaterials;
-                        bool usesShader = false;
-                        foreach (Material nMat in nMats)
-                        {
-                            if (nMat != null && nMat.shader == shaderMat.shader)
-                            {
-                                usesShader = true;
-                            }
-                        }
-                        if (!usesShader)
-                        {
-                            numShaderExcluded++;
-                            addMe = false;
-                            continue;
-                        }
-                    }
-
-                    if (mat != null)
-                    {
-                        Material[] nMats = mrs.sharedMaterials;
-                        bool usesMat = false;
-                        foreach (Material nMat in nMats)
-                        {
-                            if (nMat == mat)
-                            {
-                                usesMat = true;
-                            }
-                        }
-                        if (!usesMat)
-                        {
-                            numMatExcluded++;
-                            addMe = false;
-                            continue;
-                        }
-                    }
-
-                    if (regex != null)
-                    {
-                        if (!regex.IsMatch(mrs.gameObject.name))
-                        {
-                            numRegExExcluded++;
-                            addMe = false;
-                            continue;
-                        }
-                    }
-
-                    if (addMe && mrs.gameObject != dontAddMe)
-                    {
-                        if (!newMomObjs.Contains(mrs.gameObject))
-                        {
-                            newMomObjs.Add(mrs.gameObject);
-                        }
-                    }
-                }
-            }
-        }	
-
-        System.Text.StringBuilder sb = new System.Text.StringBuilder();
-        //sb.AppendFormat("Total objects in selection {0}\n", numInSelection);
-		//Debug.Log( "Total objects in selection " + numInSelection);
-        if (numStaticExcluded > 0)
-        {
-            sb.AppendFormat("   {0} objects were excluded because they were not static\n", numStaticExcluded);
-            Debug.Log(numStaticExcluded + " objects were excluded because they were not static\n");
-        }
-        if (numEnabledExcluded > 0)
-        {
-            sb.AppendFormat("   {0} objects were excluded because they were disabled\n", numEnabledExcluded);
-            Debug.Log(numEnabledExcluded + " objects were excluded because they were disabled\n");
-        }
-        if (numOBuvExcluded > 0)
-        {
-            sb.AppendFormat("   {0} objects were excluded because they were had out of bounds uvs\n", numOBuvExcluded);
-            Debug.Log(numOBuvExcluded + " objects were excluded because they had out of bounds uvs\n");
-        }
-        if (numLightmapExcluded > 0)
-        {
-            sb.AppendFormat("   {0} objects were excluded because they did not match lightmap filter.\n", numLightmapExcluded);
-            Debug.Log(numLightmapExcluded + " objects did not match lightmap filter.\n");
-        }
-        if (numShaderExcluded > 0)
-        {
-            sb.AppendFormat("   {0} objects were excluded because they did not use the selected shader.\n", numShaderExcluded);
-            Debug.Log(numShaderExcluded + " objects were excluded because they did not use the selected shader.\n");
-        }
-        if (numMatExcluded > 0)
-        {
-            sb.AppendFormat("   {0} objects were excluded because they did not use the selected material.\n", numMatExcluded);
-            Debug.Log(numMatExcluded + " objects were excluded because they did not use the selected material.\n");
-        }
-        if (numRegExExcluded > 0)
-        {
-            sb.AppendFormat("   {0} objects were excluded because they did not match the regular expression.\n", numRegExExcluded);
-            Debug.Log(numRegExExcluded + " objects were excluded because they did not match the regular expression.\n");
-        }
-        if (numAlreadyIncludedExcluded > 0)
-        {
-            sb.AppendFormat("   {0} objects were excluded because they did were already included in other bakers.\n", numAlreadyIncludedExcluded);
-            Debug.Log(numAlreadyIncludedExcluded + " objects were excluded because they did were already included in other bakers.\n");
-        }
-
-        helpBoxString = sb.ToString();
+		GameObject[] gos = Selection.gameObjects;
+		if (gos.Length == 0){
+			Debug.LogWarning("No objects selected in hierarchy view. Nothing added.");	
+		}
+		
+		for (int i = 0; i < gos.Length; i++){
+			GameObject go = gos[i];
+			Renderer[] mrs = go.GetComponentsInChildren<Renderer>();
+			for (int j = 0; j < mrs.Length; j++){
+				if (mrs[j] is MeshRenderer || mrs[j] is SkinnedMeshRenderer){
+					if (mrs[j].GetComponent<TextMesh>() != null){
+						continue; //don't add TextMeshes
+					}
+					numInSelection++;
+					if (!newMomObjs.Contains(mrs[j].gameObject)){
+						bool addMe = true;
+						if (!mrs[j].gameObject.isStatic && onlyStaticObjects){
+							numStaticExcluded++;
+							addMe = false;
+						}
+						
+						if (!mrs[j].enabled && onlyEnabledObjects){
+							numEnabledExcluded++;
+							addMe = false;
+						}
+	
+						if (lightmapIndex != -2){
+							if (mrs[j].lightmapIndex != lightmapIndex){
+								numLightmapExcluded++;
+								addMe = false;	
+							}
+						}
+						
+						Mesh mm = MB_Utility.GetMesh(mrs[j].gameObject);
+						if (mm != null){
+							Rect dummy = new Rect();
+							if (MB_Utility.hasOutOfBoundsUVs(mm, ref dummy) && excludeMeshesWithOBuvs){
+								if (shaderMat != null){
+									numOBuvExcluded++;
+									addMe = false;
+								}
+							} else {
+								Debug.LogWarning("Object " + mrs[j].gameObject.name + " uses uvs that are outside the range (0,1)" +
+									"this object can only be combined with other objects that use the exact same set of source textures (one image in each atlas)" +
+									" unless fix out of bounds UVs is used");
+							}
+						}					
+						
+						if (shaderMat != null){
+							Material[] nMats = mrs[j].sharedMaterials;
+							bool usesShader = false;
+							foreach(Material nMat in nMats){
+								if (nMat != null && nMat.shader == shaderMat.shader){
+									usesShader = true;	
+								}
+							}
+							if (!usesShader){
+								addMe = false;	
+							}
+						}
+						
+						if (mat != null){
+							Material[] nMats = mrs[j].sharedMaterials;
+							bool usesMat = false;
+							foreach(Material nMat in nMats){
+								if (nMat == mat){
+									usesMat = true;
+								}
+							}
+							if (!usesMat){
+								addMe = false;
+							}
+						}		
+									
+						if (addMe && mrs[j].gameObject != dontAddMe){
+							if (!newMomObjs.Contains(mrs[j].gameObject)){
+								newMomObjs.Add(mrs[j].gameObject);
+							}
+						}	
+					}
+				}
+			}
+		}
+		Debug.Log( "Total objects in selection " + numInSelection);
+		if (numStaticExcluded > 0) Debug.Log(numStaticExcluded + " objects were excluded because they were not static");
+		if (numEnabledExcluded > 0) Debug.Log(numEnabledExcluded + " objects were excluded because they were disabled");
+		if (numOBuvExcluded > 0) Debug.Log(numOBuvExcluded + " objects were excluded because they had out of bounds uvs");
+		if (numLightmapExcluded > 0) Debug.Log(numLightmapExcluded + " objects did not match lightmap filter.");
 		return newMomObjs;
 	}
 
-    void removeSelectedObjects()
-    {
-        MB3_MeshBakerRoot mom = (MB3_MeshBakerRoot)target;
-        if (mom == null)
-        {
-            Debug.LogError("Must select a target MeshBaker to add objects to");
-            return;
-        }
-        List<GameObject> objsToCombine = mom.GetObjectsToCombine();
-        HashSet<GameObject> objectsAlreadyIncludedInBakers = new HashSet<GameObject>();
-        GameObject dontAddMe = null;
-        Renderer r = MB_Utility.GetRenderer(mom.gameObject);
-        if (r != null)
-        { //make sure that this MeshBaker object is not in list
-            dontAddMe = r.gameObject;
-        }
-        List<GameObject> objsToRemove = FilterList(objsToCombine, objectsAlreadyIncludedInBakers, dontAddMe);
-        for (int i = 0; i < objsToRemove.Count; i++)
-        {
-            objsToCombine.Remove(objsToRemove[i]);
-        }
-        SerializedObject so = new SerializedObject(mom);
-        so.SetIsDifferentCacheDirty();
-        Debug.Log("Removed " + objsToRemove.Count + " objects from " + mom.name);
-        helpBoxString += String.Format("\nRemoved {0} objects from {1}", objsToRemove.Count, mom.name);
-    }
+	void addLODToSelected(){
+		/*
+		MB3_MeshBakerRoot mom = (MB3_MeshBakerRoot) target;
+		if (mom == null){
+			Debug.LogError("Must select a target MeshBaker to add objects to");
+			return;
+		}
 
-
-    void addSelectedObjects(){
+		List<GameObject> newMomObjs = GetFilteredList();
+		
+		//Undo.RegisterUndo(mom, "Add Objects");
+		int numAdded = 0;
+		for (int i = 0; i < newMomObjs.Count;i++){
+			if (newMomObjs[i].GetComponent<LODInternal>() == null){
+				newMomObjs[i].AddComponent<LODInternal>();
+				numAdded++;
+			}
+		}
+		
+		if (numAdded == 0){
+			Debug.LogWarning("Added LOD to 0 objects. Make sure some or all objects are selected in the hierarchy view. Also check ths 'Only Static Objects', 'Using Material' and 'Using Shader' settings");
+		} else {
+			Debug.Log("Added " + numAdded + " LOD components " + mom.name);
+		}
+		*/
+	}
+	
+	void addSelectedObjects(){
 		MB3_MeshBakerRoot mom = (MB3_MeshBakerRoot) target;
 		if (mom == null){
 			Debug.LogError("Must select a target MeshBaker to add objects to");
@@ -642,7 +343,7 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 		}
 		List<GameObject> newMomObjs = GetFilteredList();
 		
-		MBVersionEditor.RegisterUndo(mom, "Add Objects");
+		MB_EditorUtil.RegisterUndo(mom, "Add Objects");
 		List<GameObject> momObjs = mom.GetObjectsToCombine();
 		int numAdded = 0;
 		for (int i = 0; i < newMomObjs.Count;i++){
@@ -658,115 +359,169 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 			Debug.LogWarning("Added 0 objects. Make sure some or all objects are selected in the hierarchy view. Also check ths 'Only Static Objects', 'Using Material' and 'Using Shader' settings");
 		} else {
 			Debug.Log("Added " + numAdded + " objects to " + mom.name);
-        }
-        helpBoxString += String.Format("\nAdded {0} objects to {1}", numAdded, mom.name);
-    }
-
-	void listMaterialsInScene(){
-		if (!ValidateGroupByFields()) return;
-        if (groupByOptionFilters == null)
-        {
-            populateGroupByFilters();
-        }
-		//Get All Objects Already In a list of objects to be combined
-		MB3_MeshBakerRoot[] allBakers = FindObjectsOfType<MB3_MeshBakerRoot>();
-		HashSet<GameObject> objectsAlreadyIncludedInBakers = new HashSet<GameObject>();
-		for (int i = 0; i < allBakers.Length; i++){
-			List<GameObject> objsToCombine = allBakers[i].GetObjectsToCombine();
-			for (int j = 0; j < objsToCombine.Count; j++){
-				if (objsToCombine[j] != null) objectsAlreadyIncludedInBakers.Add(objsToCombine[j]);
-			}
 		}
+	}
+	
+	public class _GameObjectAndWarning : IComparable{
+		public GameObject go;
+		public Shader shader = null;
+		public Shader[] shaders = null;
+		public Material material = null;
+		public Material[] materials = null;
+		public bool outOfBoundsUVs = false;
+		public bool submeshesOverlap = false;
+		public int numMaterials = 1;
+		public int lightmapIndex = -1;
+		public int numVerts = 0;
+		public bool isStatic = false;
+		public LightMapOption lightmapSetting;
+		public string warning;
+		
+		public int CompareTo(System.Object obj){
+			if (obj is _GameObjectAndWarning){
+				_GameObjectAndWarning gobj = (_GameObjectAndWarning) obj;
+				
+				//compare lightmap settings
+				int lightmapCompare = gobj.lightmapIndex - lightmapIndex;
+				if (lightmapCompare != 0){
+					return lightmapCompare;
+				}
 
-		List<GameObjectFilterInfo> gameObjects = new List<GameObjectFilterInfo>();
+                //compare shaders
+                int shaderCompare = (shader == null ? "null" : shader.ToString()).CompareTo(gobj.shader == null ? "null" : gobj.shader.ToString());
+                if (shaderCompare != 0){
+                    return shaderCompare;   
+                }
+
+                //compare materials
+                int materialCompare = (material == null ? "null" : material.ToString()).CompareTo(gobj.material.ToString());
+                if (materialCompare != 0){
+                    return materialCompare; 
+                }				
+				
+//				//compare shaders
+//				int shaderCompare = shader.ToString().CompareTo(gobj.shader.ToString());
+//				if (shaderCompare != 0){
+//					return shaderCompare;	
+//				}
+//				
+//				//compare materials
+//				int materialCompare = material.ToString().CompareTo(gobj.material.ToString());
+//				if (materialCompare != 0){
+//					return materialCompare;	
+//				}
+				
+				//obUV compaer
+				int obUVCompare = Convert.ToInt32(gobj.outOfBoundsUVs) - Convert.ToInt32(outOfBoundsUVs);
+				return obUVCompare;	
+			}
+			return 0;
+		}
+		
+		public _GameObjectAndWarning(GameObject g, string w, LightMapOption ls){
+			go = g;
+			lightmapSetting = ls;
+			Renderer r = MB_Utility.GetRenderer(g);
+			material = r.sharedMaterial;
+			if (material != null) shader = material.shader;
+			materials = r.sharedMaterials;
+			shaders = new Shader[materials.Length];
+			for (int i = 0; i < shaders.Length; i++){
+				if (materials[i] != null) shaders[i] = materials[i].shader;
+			}
+			lightmapIndex = r.lightmapIndex;
+			Mesh mesh = MB_Utility.GetMesh(g);
+			numVerts = 0;
+			if (mesh != null) numVerts = mesh.vertexCount;
+			isStatic = go.isStatic;
+			numMaterials = materials.Length;
+			warning = w;
+			outOfBoundsUVs = false;
+			submeshesOverlap = false;			
+		}
+	}
+	
+	void listMaterialsInScene(bool generateMeshBakers){
+		Dictionary<Shader,List<_GameObjectAndWarning>> shader2GameObjects = new Dictionary<Shader, List<_GameObjectAndWarning>>();
 		Renderer[] rs = (Renderer[]) FindObjectsOfType(typeof(Renderer));
 //		Profile.StartProfile("listMaterialsInScene1");
-		EditorUtility.DisplayProgressBar("Analysing Scene","Collecting Renderers",.25f);
 		for (int i = 0; i < rs.Length; i++){
 			Renderer r = rs[i];
 			if (r is MeshRenderer || r is SkinnedMeshRenderer){
 				if (r.GetComponent<TextMesh>() != null){
 					continue; //don't add TextMeshes
 				}
-				GameObjectFilterInfo goaw = new GameObjectFilterInfo(r.gameObject,objectsAlreadyIncludedInBakers);
-				gameObjects.Add (goaw);
-				EditorUtility.DisplayProgressBar("Analysing Scene","Collecting Renderer For " + r.name,.1f);
-			}
-		}
-
-		Dictionary<int,MB_Utility.MeshAnalysisResult> meshAnalysisResultCache = new Dictionary<int, MB_Utility.MeshAnalysisResult>();
-		int totalVerts = 0;
-		for (int i = 0; i < gameObjects.Count; i++){
-			string rpt = String.Format ("Processing {0} [{1} of {2}]",gameObjects[i].go.name,i,gameObjects.Count);
-			EditorUtility.DisplayProgressBar("Analysing Scene",rpt + " A",.6f);
-			Mesh mm = MB_Utility.GetMesh(gameObjects[i].go);
-			int nVerts = 0;
-			if (mm != null){
-				nVerts += mm.vertexCount;
-				MB_Utility.MeshAnalysisResult mar;
-				if (!meshAnalysisResultCache.TryGetValue(mm.GetInstanceID(),out mar)){
+				Material[] mms = r.sharedMaterials;
+				List<_GameObjectAndWarning> gos;
+			
+				foreach (Material mm in mms){
+					if (mm != null){
+						string warn = "";
+						if (shader2GameObjects.ContainsKey(mm.shader)){
+							gos = shader2GameObjects[mm.shader];
+						} else {
+							gos = new List<_GameObjectAndWarning>();
+							shader2GameObjects.Add(mm.shader,gos);
+						}
+						//todo add warning for texture scaling
+						if (r.sharedMaterials.Length > 1){
+							warn += " [Uses multiple materials] ";
+						}
 					
-					EditorUtility.DisplayProgressBar("Analysing Scene",rpt + " Check Out Of Bounds UVs",.6f);
-					MB_Utility.hasOutOfBoundsUVs(mm,ref mar);
-                    //Rect dummy = mar.uvRect;
-                    MB_Utility.doSubmeshesShareVertsOrTris(mm,ref mar);
-					meshAnalysisResultCache.Add (mm.GetInstanceID(),mar);
+						if (gos.Find(x => x.go == r.gameObject) == null){
+							gos.Add(new _GameObjectAndWarning(r.gameObject,warn, generate_LightmapOption));
+						}
+					}
 				}
-				if (mar.hasOutOfBoundsUVs){
-					int w = (int) mar.uvRect.width;
-					int h = (int) mar.uvRect.height;
-					gameObjects[i].outOfBoundsUVs = true;
-					gameObjects[i].warning += " [WARNING: has uvs outside the range (0,1) tex is tiled " + w + "x" + h + " times]";
-				}
-				if (mar.hasOverlappingSubmeshVerts){
-					gameObjects[i].submeshesOverlap = true;
-					gameObjects[i].warning += " [WARNING: Submeshes share verts or triangles. 'Multiple Combined Materials' feature may not work.]";
-				}
-			}
-			totalVerts += nVerts;
-			EditorUtility.DisplayProgressBar("Analysing Scene",rpt + " Validate OBuvs Multi Material",.6f);
-			Renderer mr = gameObjects[i].go.GetComponent<Renderer>();
-			if (!MB_Utility.AreAllSharedMaterialsDistinct(mr.sharedMaterials)){
-				gameObjects[i].warning += " [WARNING: Object uses same material on multiple submeshes. This may produce poor results when used with multiple materials or fix out of bounds uvs.]";
 			}
 		}
 
-		Dictionary<GameObjectFilterInfo,List<GameObjectFilterInfo>> gs2bakeGroupMap = new Dictionary<GameObjectFilterInfo,List<GameObjectFilterInfo>>();
-		List<GameObjectFilterInfo> objsNotAddedToBaker = new List<GameObjectFilterInfo>();		
+		foreach(Shader m in shader2GameObjects.Keys){
+			int totalVerts = 0;
+			List<_GameObjectAndWarning> gos = shader2GameObjects[m];
+			for (int i = 0; i < gos.Count; i++){
+				Mesh mm = MB_Utility.GetMesh(gos[i].go);
+				int nVerts = 0;
+				if (mm != null){
+					nVerts += mm.vertexCount;
+					Rect dummy = new Rect();
+					if (MB_Utility.hasOutOfBoundsUVs(mm,ref dummy)){
+						int w = (int) dummy.width;
+						int h = (int) dummy.height;
+						gos[i].outOfBoundsUVs = true;
+						gos[i].warning += " [WARNING: has uvs outside the range (0,1) tex is tiled " + w + "x" + h + " times]";
+					}
+					if (MB_Utility.doSubmeshesShareVertsOrTris(mm) != 0){
+						gos[i].submeshesOverlap = true;
+						gos[i].warning += " [WARNING: Submeshes share verts or triangles. 'Multiple Combined Materials' feature may not work.]";
+					}
+				}
+				totalVerts += nVerts;
+				Renderer mr = gos[i].go.GetComponent<Renderer>();
+				if (!MB_Utility.validateOBuvsMultiMaterial(mr.sharedMaterials)){
+					gos[i].warning += " [WARNING: Object uses same material on multiple submeshes. This may produce poor results when used with multiple materials or fix out of bounds uvs.]";
+				}
+			}
+		}
+		Dictionary<_GameObjectAndWarning,List<_GameObjectAndWarning>> gs2bakeGroupMap = new Dictionary<_GameObjectAndWarning,List<_GameObjectAndWarning>>();
+		List<_GameObjectAndWarning> objsNotAddedToBaker = new List<_GameObjectAndWarning>();		
 		
-		sortIntoBakeGroups3(gameObjects, gs2bakeGroupMap, objsNotAddedToBaker);
-
-		sceneAnalysisResults = new List<List<GameObjectFilterInfo>>(); 
-		sceneAnalysisResultsFoldouts = new bool[gs2bakeGroupMap.Keys.Count];
-		int ii = 0;
-		foreach (GameObjectFilterInfo gow in gs2bakeGroupMap.Keys){
-			sceneAnalysisResultsFoldouts[ii++] = true;
-			List<GameObjectFilterInfo> gows = gs2bakeGroupMap[gow];
-			sceneAnalysisResults.Add (gows);
-		}
-
-//		if (generateMeshBakers){
-//			createBakers(gs2bakeGroupMap, objsNotAddedToBaker);						
-//		} else {
-
-		string fileName = Application.dataPath + "/MeshBakerSceneAnalysisReport.txt";
-		try{
-			System.IO.File.WriteAllText(fileName, generateSceneAnalysisReport(gs2bakeGroupMap, objsNotAddedToBaker));
-			Debug.Log (String.Format ("Wrote scene analysis file to '{0}'. This file contains a list of all renderers and the materials/shaders that they use. It is designed to be opened with a spreadsheet.",fileName));
-		} catch (Exception e){
-			e.GetHashCode(); //supress compiler warning
-			Debug.Log ("Failed to write file: " + fileName);
-		}
-
-//		}		
+		sortIntoBakeGroups2(generateMeshBakers, shader2GameObjects, gs2bakeGroupMap, objsNotAddedToBaker);
+		
+		if (generateMeshBakers){
+			createBakers(gs2bakeGroupMap, objsNotAddedToBaker);
+			//Debug.Log( generateSceneAnalysisReport(gs2bakeGroupMap, objsNotAddedToBaker) );						
+		} else {
+			Debug.Log( generateSceneAnalysisReport(gs2bakeGroupMap, objsNotAddedToBaker) );			
+		}		
 	}
-
-	string generateSceneAnalysisReport(Dictionary<GameObjectFilterInfo,List<GameObjectFilterInfo>> gs2bakeGroupMap, List<GameObjectFilterInfo> objsNotAddedToBaker){
+	
+	string generateSceneAnalysisReport(Dictionary<_GameObjectAndWarning,List<_GameObjectAndWarning>> gs2bakeGroupMap, List<_GameObjectAndWarning> objsNotAddedToBaker){
 		string outStr = "(Click me, if I am too big copy and paste me into a spreadsheet or text editor)\n";// Materials in scene " + shader2GameObjects.Keys.Count + " and the objects that use them:\n";
 		outStr += "\t\tOBJECT NAME\tLIGHTMAP INDEX\tSTATIC\tOVERLAPPING SUBMESHES\tOUT-OF-BOUNDS UVs\tNUM MATS\tMATERIAL\tWARNINGS\n";
 		int totalVerts = 0;
 		string outStr2 = "";
-		foreach(List<GameObjectFilterInfo> gos in gs2bakeGroupMap.Values){
+		foreach(List<_GameObjectAndWarning> gos in gs2bakeGroupMap.Values){
 			outStr2 = "";
 			totalVerts = 0;
 			gos.Sort();
@@ -779,20 +534,20 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 				}				
 				outStr2 += "\t\t" + gos[i].go.name + " (" + gos[i].numVerts + " verts)\t" + gos[i].lightmapIndex + "\t" + gos[i].isStatic + "\t" + gos[i].submeshesOverlap + "\t" + gos[i].outOfBoundsUVs + "\t" + gos[i].numMaterials + "\t" + matStr + "\t" + gos[i].warning + "\n";	
 			}
-			outStr2 = "\t" + gos[0].shaderName + " (" + totalVerts + " verts): \n" + outStr2;
+			outStr2 = "\t" + gos[0].shader + " (" + totalVerts + " verts): \n" + outStr2;
 			outStr += outStr2;
 		}
 		if (objsNotAddedToBaker.Count > 0){
 			outStr += "Other objects\n";
 			string shaderName = "";
 			totalVerts = 0;
-			List<GameObjectFilterInfo> gos1 = objsNotAddedToBaker;
+			List<_GameObjectAndWarning> gos1 = objsNotAddedToBaker;
 			gos1.Sort();
 			outStr2 = "";
 			for (int i = 0; i < gos1.Count; i++){
-				if (!shaderName.Equals( objsNotAddedToBaker[i].shaderName )){
-					outStr2 += "\t" + gos1[0].shaderName + "\n";
-					shaderName = objsNotAddedToBaker[i].shaderName;	
+				if (!shaderName.Equals( objsNotAddedToBaker[i].shader.ToString() )){
+					outStr2 += "\t" + gos1[0].shader + "\n";
+					shaderName = objsNotAddedToBaker[i].shader.ToString();	
 				}
 				totalVerts += gos1[i].numVerts;
 				string matStr = "";
@@ -807,7 +562,7 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 		return outStr;
 	}
 	
-	bool MaterialsAreTheSame(GameObjectFilterInfo a, GameObjectFilterInfo b){
+	bool MaterialsAreTheSame(_GameObjectAndWarning a, _GameObjectAndWarning b){
 		HashSet<Material> aMats = new HashSet<Material>();
 		for(int i = 0; i < a.materials.Length; i++) aMats.Add(a.materials[i]);
 		HashSet<Material> bMats = new HashSet<Material>();
@@ -815,64 +570,130 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 		return aMats.SetEquals(bMats);
 	}
 
-	bool ShadersAreTheSame(GameObjectFilterInfo a, GameObjectFilterInfo b){
+	bool ShadersAreTheSame(_GameObjectAndWarning a, _GameObjectAndWarning b){
 		HashSet<Shader> aMats = new HashSet<Shader>();
 		for(int i = 0; i < a.shaders.Length; i++) aMats.Add(a.shaders[i]);
 		HashSet<Shader> bMats = new HashSet<Shader>();
 		for(int i = 0; i < b.shaders.Length; i++) bMats.Add(b.shaders[i]);
 		return aMats.SetEquals(bMats);
 	}
-	 
-	void sortIntoBakeGroups3(List<GameObjectFilterInfo> gameObjects,
-	                         Dictionary<GameObjectFilterInfo,List<GameObjectFilterInfo>> gs2bakeGroupMap,
-	                         List<GameObjectFilterInfo> objsNotAddedToBaker){
-		List<GameObjectFilterInfo> gos = gameObjects;
-		if (gos.Count < 1) return;
 
-		List<IGroupByFilter> gbfs = new List<IGroupByFilter>();
-		for (int i = 0; i < groupByFilterIdxs.Length; i++){
-			if (groupByFilterIdxs[i] != 0){
-				gbfs.Add ( groupByOptionFilters[groupByFilterIdxs[i]] );
+	void sortIntoBakeGroups2(bool useFilters,
+							Dictionary<Shader,List<_GameObjectAndWarning>> shader2GameObjects,
+							Dictionary<_GameObjectAndWarning,List<_GameObjectAndWarning>> gs2bakeGroupMap,
+							List<_GameObjectAndWarning> objsNotAddedToBaker){
+		foreach(Shader m in shader2GameObjects.Keys){
+			List<_GameObjectAndWarning> gos = shader2GameObjects[m];
+			gos.Sort();
+			List<_GameObjectAndWarning> l = null;
+			_GameObjectAndWarning key = gos[0];
+			for (int i = 0; i < gos.Count; i++){
+				//exclude objects that should not be included
+				bool includeThisGameObject = true;
+				if (useFilters && generate_IncludeStaticObjects && !gos[i].isStatic) includeThisGameObject = false;
+				if (useFilters && gos[i].submeshesOverlap) includeThisGameObject = false;
+				if (useFilters && gos[i].numMaterials > 1) includeThisGameObject = false;
+				
+				if (!includeThisGameObject){
+					objsNotAddedToBaker.Add(gos[i]);
+					continue;
+				}
+				
+				//compare with key and decide if we need a new list
+				if (key.lightmapIndex != gos[i].lightmapIndex) l = null;
+				if (gos[i].outOfBoundsUVs && !MaterialsAreTheSame(key, gos[i])) l = null;
+				if (key.outOfBoundsUVs && !MaterialsAreTheSame(key, gos[i])) l = null;
+								
+				
+				if (l == null){
+					l = new List<_GameObjectAndWarning>();
+					gs2bakeGroupMap.Add(gos[i],l);
+					key = gos[i];
+				}
+				l.Add(gos[i]);				
 			}
 		}
-		GameObjectFilterInfo.filters = gbfs.ToArray();
-	
-		gos.Sort();
-		List<GameObjectFilterInfo> l = null;
-		GameObjectFilterInfo key = gos[0];
-		Debug.Log ("-----------");
-		for (int i = 0; i < gos.Count; i++){
-			GameObjectFilterInfo goaw = gos[i];
-			//compare with key and decide if we need a new list
-			for (int j = 0; j < GameObjectFilterInfo.filters.Length; j++){
-				if (GameObjectFilterInfo.filters[j] != null && GameObjectFilterInfo.filters[j].Compare(key,goaw) != 0) l = null; 
-			}		
-			if (l == null){
-				l = new List<GameObjectFilterInfo>();
-				gs2bakeGroupMap.Add(gos[i],l);
-				key = gos[i];
+	}	
+	  
+	void sortIntoBakeGroups(bool useFilters,
+							Dictionary<Shader,List<_GameObjectAndWarning>> shader2GameObjects,
+							Dictionary<_GameObjectAndWarning,List<_GameObjectAndWarning>> gs2bakeGroupMap,
+							List<_GameObjectAndWarning> objsNotAddedToBaker){
+		foreach(Shader m in shader2GameObjects.Keys){
+			List<_GameObjectAndWarning> gos = shader2GameObjects[m];
+			gos.Sort();
+			for (int i = 0; i < gos.Count; i++){
+				//exclude objects that should not be included
+				bool includeThisGameObject = true;
+				if (useFilters && generate_IncludeStaticObjects && !gos[i].isStatic) includeThisGameObject = false;
+				if (useFilters && gos[i].submeshesOverlap) includeThisGameObject = false;
+				if (useFilters && gos[i].numMaterials > 1) includeThisGameObject = false;
+				
+				if (!includeThisGameObject){
+					objsNotAddedToBaker.Add(gos[i]);
+					continue;
+				}
+				
+				//try to find a group that this game object belongs to
+				_GameObjectAndWarning key = null;
+				foreach(_GameObjectAndWarning consider in gs2bakeGroupMap.Keys){
+					if (generate_LightmapOption == LightMapOption.preserveLightmapping && 
+						consider.lightmapIndex != gos[i].lightmapIndex) continue;
+					if (gos[i].submeshesOverlap) continue;
+					
+					if (gos[i].outOfBoundsUVs == true){
+						if (consider.outOfBoundsUVs == true && MaterialsAreTheSame(consider, gos[i])){
+							//materials needs to be the same
+							key = consider;
+							break;
+						}
+					} else {
+						//shader needs to be the same
+						if (ShadersAreTheSame(consider, gos[i])){
+							key = consider;
+							break;
+						}						
+					}
+				}					
+		
+				List<_GameObjectAndWarning> l = null;
+				if (key == null){
+					l = new List<_GameObjectAndWarning>();
+					gs2bakeGroupMap.Add(gos[i],l);
+				} else {
+					l = gs2bakeGroupMap[key];
+				}
+				l.Add(gos[i]);				
 			}
-			l.Add(gos[i]);				
 		}
 	}
 	
-	void createBakers(Dictionary<GameObjectFilterInfo,List<GameObjectFilterInfo>> gs2bakeGroupMap, List<GameObjectFilterInfo> objsNotAddedToBaker){
+	void createBakers(Dictionary<_GameObjectAndWarning,List<_GameObjectAndWarning>> gs2bakeGroupMap, List<_GameObjectAndWarning> objsNotAddedToBaker){
 		string s = "";
 		int numBakers = 0;
 		int numObjsAdded = 0;
+		//create set of objects already added to mesh bakers
+//		HashSet<GameObject> alreadyInMeshBaker = new HashSet<GameObject>();
+//		MB3_MeshBakerCommon[]  mbsInScene = (MB3_MeshBakerCommon[]) FindObjectsOfType(typeof(MB3_MeshBakerCommon));
+//		for (int i = 0; i < mbsInScene.Length; i++){
+//			List<GameObject> gos = mbsInScene[i].GetObjectsToCombine();
+//			for (int j = 0; j < gos.Count; j++){
+//				if (!alreadyInMeshBaker.Contains(gos[j])) alreadyInMeshBaker.Add(gos[j]);
+//			}
+//		}
 		
 		if (generate_AssetsFolder == null || generate_AssetsFolder == ""){
 			Debug.LogError("Need to choose a folder for saving the combined material assets.");
 			return;
 		}
 		
-		List<GameObjectFilterInfo> singletonObjsNotAddedToBaker = new List<GameObjectFilterInfo>();
-		foreach(List<GameObjectFilterInfo> gaw in gs2bakeGroupMap.Values){
+		List<_GameObjectAndWarning> singletonObjsNotAddedToBaker = new List<_GameObjectAndWarning>();
+		foreach(List<_GameObjectAndWarning> gaw in gs2bakeGroupMap.Values){
 			if (gaw.Count > 1){
 				numBakers ++;
 				numObjsAdded += gaw.Count;
 				createAndSetupBaker(gaw, generate_AssetsFolder);
-				s += "  Created meshbaker for shader=" + gaw[0].shaderName + " lightmap=" + gaw[0].lightmapIndex + " OBuvs=" + gaw[0].outOfBoundsUVs + "\n";
+				s += "  Created meshbaker for shader=" + gaw[0].shader + " lightmap=" + gaw[0].lightmapIndex + " OBuvs=" + gaw[0].outOfBoundsUVs + "\n";
 			} else {
 				singletonObjsNotAddedToBaker.Add(gaw[0]);
 			}
@@ -892,25 +713,14 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 		Debug.Log(s);		
 	}
 	
-	void createAndSetupBaker(List<GameObjectFilterInfo> gaws, string pthRoot){
-		for (int i = gaws.Count - 1; i >= 0; i--){
-			if (gaws[i].go == null) gaws.RemoveAt(i);
-		}
+	void createAndSetupBaker(List<_GameObjectAndWarning> gaws, string pthRoot){
 		if (gaws.Count < 1){
-			Debug.LogError ("No game objects.");
-			return;
-		}
-
-		if (pthRoot == null || pthRoot == ""){
-			Debug.LogError ("Folder for saving created assets was not set.");
 			return;
 		}
 		
 		int numVerts = 0;
 		for (int i = 0; i < gaws.Count; i++){
-			if (gaws[i].go != null){
-				numVerts = gaws[i].numVerts;
-			}
+			numVerts = gaws[i].numVerts;
 		}
 		
 		GameObject newMeshBaker = null;
@@ -920,33 +730,36 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 			newMeshBaker = MB3_MeshBakerEditor.CreateNewMeshBaker();
 		}
 		
-		newMeshBaker.name = ("MeshBaker-" + gaws[0].shaderName + "-LM" + gaws[0].lightmapIndex).ToString().Replace("/","-");
+		newMeshBaker.name = ("MeshBaker-" + gaws[0].shader.name + "-LM" + gaws[0].lightmapIndex).ToString().Replace("/","-");
 			
 		MB3_TextureBaker tb = newMeshBaker.GetComponent<MB3_TextureBaker>();
-		MB3_MeshBakerCommon mb = tb.GetComponentInChildren<MB3_MeshBakerCommon>();
-
+		//string pth = AssetDatabase.GenerateUniqueAssetPath(pthRoot);
+		
+		//create result material
+		string pthMat = AssetDatabase.GenerateUniqueAssetPath( pthRoot + newMeshBaker.name + ".mat" );
+		AssetDatabase.CreateAsset(new Material(Shader.Find("Diffuse")), pthMat);
+		tb.resultMaterial = (Material) AssetDatabase.LoadAssetAtPath(pthMat, typeof(Material));
+		
+		//create the MB2_TextureBakeResults
+		string pthAsset = AssetDatabase.GenerateUniqueAssetPath( pthRoot + newMeshBaker.name + ".asset" );
+		AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<MB2_TextureBakeResults>(),pthAsset);
+		tb.textureBakeResults = (MB2_TextureBakeResults) AssetDatabase.LoadAssetAtPath(pthAsset, typeof(MB2_TextureBakeResults));
+		AssetDatabase.Refresh();		
+		
+		tb.resultMaterial.shader = gaws[0].shader;
 		tb.GetObjectsToCombine().Clear();
 		for (int i = 0; i < gaws.Count; i++){
-			if (gaws[i].go != null){
-				tb.GetObjectsToCombine().Add(gaws[i].go);
+			tb.GetObjectsToCombine().Add(gaws[i].go);
+		}
+		MB3_MeshBakerCommon mb = newMeshBaker.GetComponentInChildren<MB3_MeshBakerCommon>();
+		if (generate_LightmapOption == LightMapOption.ignore){
+			mb.meshCombiner.lightmapOption = MB2_LightmapOptions.ignore_UV2;
+		} else {
+			if (gaws[0].lightmapIndex == -1 || gaws[0].lightmapIndex == -2){
+				mb.meshCombiner.lightmapOption = MB2_LightmapOptions.ignore_UV2;
+			} else {
+				mb.meshCombiner.lightmapOption = MB2_LightmapOptions.preserve_current_lightmapping;
 			}
-		}
-
-		if (gaws[0].numMaterials > 1){
-            string pthMat = AssetDatabase.GenerateUniqueAssetPath(pthRoot + newMeshBaker.name + ".asset");
-            MB3_TextureBakerEditorInternal.CreateCombinedMaterialAssets(tb, pthMat);
-            tb.doMultiMaterial = true;
-			SerializedObject tbr = new SerializedObject(tb);
-			SerializedProperty resultMaterials = tbr.FindProperty("resultMaterials");
-			MB3_TextureBakerEditorInternal.ConfigureMutiMaterialsFromObjsToCombine (tb,resultMaterials,tbr);
-		} else {
-			string pthMat = AssetDatabase.GenerateUniqueAssetPath( pthRoot + newMeshBaker.name + ".asset" );
-			MB3_TextureBakerEditorInternal.CreateCombinedMaterialAssets(tb, pthMat);
-		}
-		if (gaws[0].isMeshRenderer) {
-			mb.meshCombiner.renderType = MB_RenderType.meshRenderer;  
-		} else {
-			mb.meshCombiner.renderType = MB_RenderType.skinnedMeshRenderer;
 		}
 	}
 	
@@ -959,6 +772,14 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 			}
 		}
 		EditorUtility.ClearProgressBar();
+//		for (int i = 0; i < bakers.Length; i++){
+//			if (bakers[i] is MB3_MeshBaker){
+//				MB3_MeshBaker mb = (MB3_MeshBaker) bakers[i];
+//			}
+//			if (bakers[i] is MB3_MultiMeshBaker){
+//				MB3_MultiMeshBaker mb = (MB3_MultiMeshBaker) bakers[i];
+//			}
+//		}
 	}
 
 	public void BuildAllSource(MB3_TextureBaker mom) {
@@ -971,25 +792,5 @@ public class MB3_MeshBakerEditorWindow : EditorWindow, MB3_MeshBakerEditorWindow
 
 	public void updateProgressBar(string msg, float progress){
 		EditorUtility.DisplayProgressBar("Combining Meshes", msg, progress);
-	}
-
-	bool ValidateGroupByFields(){
-		bool foundNone = false;
-		for (int i = 0; i < groupByFilterIdxs.Length; i++){
-			if (groupByFilterIdxs[i] == 0) foundNone = true; //zero is the none selection
-			if (foundNone && groupByFilterIdxs[i] != 0){
-				Debug.LogError("All non-none values must be at the top of the group by list");
-				return false;
-			}
-		}
-		for (int i = 0; i < groupByFilterIdxs.Length; i++){
-			for (int j = i+1; j < groupByFilterIdxs.Length; j++){
-				if (groupByFilterIdxs[i] == groupByFilterIdxs[j] && groupByFilterIdxs[i] != 0){
-					Debug.LogError("Two of the group by options are the same.");
-					return false;
-				}
-			}
-		}
-		return true;
-	}
+	}	
 }

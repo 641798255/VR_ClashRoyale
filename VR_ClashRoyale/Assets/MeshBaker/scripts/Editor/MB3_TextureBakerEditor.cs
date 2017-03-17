@@ -14,23 +14,12 @@ using UnityEditor;
 using DigitalOpus.MB.Core;
 
 [CustomEditor(typeof(MB3_TextureBaker))]
-[CanEditMultipleObjects]
 public class MB3_TextureBakerEditor : Editor {
 	
 	MB3_TextureBakerEditorInternal tbe = new MB3_TextureBakerEditorInternal();
 	
-    void OnEnable()
-    {
-        tbe.OnEnable(serializedObject);
-    }
-
-    void OnDisable()
-    {
-        tbe.OnDisable();
-    }
-
 	public override void OnInspectorGUI(){
-		tbe.DrawGUI(serializedObject, (MB3_TextureBaker) target, typeof(MB3_MeshBakerEditorWindow));	
+		tbe.DrawGUI((MB3_TextureBaker) target, typeof(MB3_MeshBakerEditorWindow));	
 	}
 	
 }

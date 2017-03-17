@@ -43,19 +43,9 @@ public class MB3_MultiMeshBakerEditor : Editor {
 		meshBaker.transform.parent = nmb.transform;
 		return nmb;
 	}
-
-    void OnEnable()
-    {
-        mbe.OnEnable(serializedObject);
-    }
-
-    void OnDisable()
-    {
-        mbe.OnDisable();
-    }
-
-    public override void OnInspectorGUI(){
-		mbe.OnInspectorGUI(serializedObject, (MB3_MeshBakerCommon) target, typeof(MB3_MeshBakerEditorWindow));
+	
+	public override void OnInspectorGUI(){
+		mbe.OnInspectorGUI((MB3_MeshBakerCommon) target, typeof(MB3_MeshBakerEditorWindow));
 	}
 
 
