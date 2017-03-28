@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7d41887b1546f5c44ab54e7e65aad3bc, type: 3}
+  m_Name: MainGroup1
+  m_EditorClassIdentifier: 
+  combinedMaterialInfo:
+  - atlases:
+    - {fileID: 2800000, guid: f33f705edec2b5c4d88bf844562bad94, type: 3}
+    texPropertyNames:
+    - _MainTex
+  - atlases:
+    - {fileID: 2800000, guid: 51190a73d15e23c4087396dd6daf8939, type: 3}
+    texPropertyNames:
+    - _MainTex
+  materials:
+  - {fileID: 2100000, guid: 19ac7518748d2f54dba312782bdb4950, type: 2}
+  - {fileID: 2100000, guid: 2f9b771f7d5dce24fbfd8abf33428911, type: 2}
+  prefabUVRects:
+  - serializedVersion: 2
+    x: 0
+    y: 0
+    width: 1
+    height: 1
+  - serializedVersion: 2
+    x: 0
+    y: 0
+    width: 1
+    height: 1
+  resultMaterial: {fileID: 2100000, guid: c50b6685f33fd9348b942235ab448392, type: 2}
+  resultMaterials:
+  - combinedMaterial: {fileID: 2100000, guid: 4506c8334991b944382a3402d1eb4215, type: 2}
+    sourceMaterials:
+    - {fileID: 2100000, guid: 19ac7518748d2f54dba312782bdb4950, type: 2}
+  - combinedMaterial: {fileID: 2100000, guid: e7c288223bc41f9489e2515ca57fe564, type: 2}
+    sourceMaterials:
+    - {fileID: 2100000, guid: 2f9b771f7d5dce24fbfd8abf33428911, type: 2}
+  doMultiMaterial: 1
+  fixOutOfBoundsUVs: 1
